@@ -92,7 +92,7 @@ input::placeholder { color: var(--line); }
 
 .topbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
 .crumb { font-family: var(--f-display); font-size: var(--j15); color: var(--ink); background: var(--panel-2); padding: 6px 10px; }
-.mutebtn { font-size: var(--j15); padding: 8px 10px; }
+.mutebtn { font-size: var(--j15); padding: 8px 10px; margin-left: auto; }
 a.backlink { color: var(--moss); text-decoration: none; margin-right: auto; box-shadow: 0 0 0 2px var(--line); }
 a.backlink:hover { background: var(--panel); }
 a.backlink:focus-visible { outline: var(--px) solid var(--firefly); outline-offset: 6px; }
@@ -221,8 +221,8 @@ a.backlink:focus-visible { outline: var(--px) solid var(--firefly); outline-offs
 <canvas id="scene" aria-hidden="true"></canvas>
 <main>
   <div class="topbar">
-    <a class="crumb backlink" id="allGames" href="index.html" hidden>ALL GAMES</a>
-    <span class="crumb" id="crumb">HOME</span>
+    <a class="crumb backlink" id="allGames" href="index.html">ALL GAMES</a>
+    <span class="label" id="matchup" hidden></span>
     <button class="ghost mutebtn" id="muteBtn" type="button" aria-pressed="false">SOUND ON</button>
   </div>
 
@@ -471,9 +471,7 @@ paintMute();
 
 /* ---------- screens ---------- */
 const SCREENS = ["home", "intro", "play", "results"];
-// "All games" only makes sense on the real site, and is hidden mid-round so nobody leaves by accident
-const ON_SITE = (() => { try { return window.self === window.top && /^https?:$/.test(location.protocol); } catch { return false; } })();
-function show(id, crumb) { SCREENS.forEach((s) => ($(s).hidden = s !== id)); $("crumb").textContent = crumb; $("allGames").hidden = !ON_SITE || id === "play"; window.scrollTo(0, 0); }
+function show(id) { SCREENS.forEach((s) => ($(s).hidden = s !== id)); $("matchup").hidden = id !== "play"; window.scrollTo(0, 0); }
 const cleanName = (v) => (v || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 10);
 for (const id of ["nameIn", "nameIn2"]) {
   $(id).value = store.get("aa-name", "");
@@ -486,7 +484,8 @@ function startGame(board, words, others) {
   const me = cleanName($("nameIn").value) || cleanName($("nameIn2").value) || "PLAYER";
   G = { board, words, set: new Set(words), me, others: others || [], path: [], typed: "", found: new Set(), score: 0, endsAt: performance.now() + ROUND_MS, done: false, lastTick: 99 };
   const n = G.others.length;
-  show("play", n === 0 ? "SOLO" : n === 1 ? `VS ${G.others[0].name}` : `VS ${n} PLAYERS`);
+  $("matchup").textContent = n === 0 ? "SOLO" : n === 1 ? `VS ${G.others[0].name}` : `VS ${n} PLAYERS`;
+  show("play");
   renderGrid(); renderFound(); setFb("", "");
   $("scoreV").textContent = "0"; $("countV").textContent = "0";
   blip([392, 523, 659], 0.08);
@@ -628,7 +627,7 @@ document.addEventListener("keydown", (e) => {
   const k = e.key;
   if (/^[a-zA-Z]$/.test(k)) { if (G.typed.length < 16) typed(G.typed + k.toLowerCase()); e.preventDefault(); }
   else if (k === "Backspace") { typed(G.typed.slice(0, -1)); e.preventDefault(); }
-  else if (k === "Enter") { if (mode === "glide") finishTrace(); else submit(G.typed); e.preventDefault(); }
+  else if (k === "Enter") { if (e.target.id === "allGames") return; if (mode === "glide") finishTrace(); else submit(G.typed); e.preventDefault(); }
   else if (k === "Escape") { cancelTrace(); }
 });
 addEventListener("resize", () => { if (G && !$("play").hidden) paintPath(); });
@@ -720,7 +719,7 @@ function showResults(game, meIndex, note) {
   $("copyCode").onclick = () => copyText(code, "CODE COPIED");
 
   renderAnswers();
-  show("results", ps.length > 1 ? `${ps.length} PLAYERS` : "RESULTS");
+  show("results");
 }
 // answer key: by default every word someone found plus every missed word of 5+ letters
 function renderAnswers() {
@@ -766,8 +765,9 @@ async function copyText(text, ok) {
 function newGame() { const { b, words } = rollBoard(); startGame(b, words, []); }
 $("newBtn").onclick = newGame;
 $("againBtn").onclick = newGame;
-$("homeBtn").onclick = () => show("home", "HOME");
-$("introHome").onclick = () => show("home", "HOME");
+$("homeBtn").onclick = () => show("home");
+$("allGames").onclick = (e) => { if (G && !G.done && !$("play").hidden && !confirm("Are you sure? You will lose this round.")) e.preventDefault(); };
+$("introHome").onclick = () => show("home");
 let PENDING = null;
 function openCode(raw, errEl) {
   const parsed = parseCode(raw);
@@ -793,7 +793,7 @@ function openCode(raw, errEl) {
   }
   $("nameIn2").value = store.get("aa-name", "");
   $("introErr").textContent = "";
-  show("intro", g.players.length > 1 ? `${g.players.length} PLAYERS` : "CHALLENGE");
+  show("intro");
   return true;
 }
 $("codeBtn").onclick = () => openCode($("codeIn").value, $("codeErr"));
@@ -967,7 +967,7 @@ window.addEventListener("hashchange", fromHash);
   if (!still) loop();
 })();
 
-show("home", "HOME");
+show("home");
 fromHash();
 </script>
 

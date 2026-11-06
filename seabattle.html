@@ -1,0 +1,968 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Woodland Swamp Battle</title>
+<meta name="description" content="Hide five things in the swamp, then trade shots with a friend over iMessage or Discord.">
+<meta property="og:title" content="Woodland Swamp Battle">
+<meta property="og:description" content="Five hidden pieces each. One shot per message. Find them all.">
+<meta name="theme-color" content="#0b1610">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jersey+10&display=swap">
+<style>
+body { margin: 0; }
+/* Layout: one narrow column of solid pixel panels over a dithered forest; the letter tiles are the hero. */
+:root {
+  color-scheme: dark;
+  --night: #0b1610;      /* page */
+  --panel: #13241a;      /* panels */
+  --panel-2: #0e1c14;    /* insets */
+  --line: #2e5236;       /* pixel borders */
+  --rim: #5f8f4e;        /* top edge of panels, like light on a ridge */
+  --moss: #8fd06f;       /* primary */
+  --moss-dk: #3c7034;
+  --firefly: #ffd76a;    /* points */
+  --bark: #e8d5a4;       /* tiles */
+  --bark-dk: #8f6a3b;
+  --berry: #ff7f6b;      /* errors, timer warning */
+  --ink: #e6f2dc;        /* text */
+  --mute: #8daa8c;
+  --tile-ink: #2b1e10;
+  --f-display: "Jersey 10", "Arial Narrow", sans-serif;
+  --f-body: "Jersey 10", "Arial Narrow", sans-serif;
+  /* every text size is a multiple of Jersey 10's pixel grid (18.667px per em) */
+  --j15: 28px; --j2: 37.3333px; --j3: 56px; --j4: 74.6667px;
+  --px: 4px;
+}
+* { box-sizing: border-box; font-synthesis: none; }
+html, body { height: 100%; }
+[hidden] { display: none !important; }
+body {
+  background: var(--night); color: var(--ink);
+  font-family: var(--f-body); font-size: var(--j15); line-height: 32px;
+  -webkit-font-smoothing: none; font-smooth: never;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  overflow-x: hidden;
+}
+#scene { position: fixed; left: 0; top: 0; image-rendering: pixelated; image-rendering: crisp-edges; z-index: 0; pointer-events: none; }
+main { position: relative; z-index: 1; max-width: 520px; margin: 0 auto; padding-block: 28px 56px; display: flex; flex-direction: column; gap: 24px; }
+.screen { display: flex; flex-direction: column; gap: 20px; }
+h1, h2 { font-family: var(--f-display); font-weight: 400; margin: 0; text-wrap: balance; }
+h1 { font-size: var(--j4); line-height: 1; letter-spacing: 0.02em; color: var(--firefly); text-shadow: var(--px) var(--px) 0 var(--moss-dk), calc(var(--px)*2) calc(var(--px)*2) 0 var(--night); }
+h2 { font-size: var(--j15); color: var(--moss); letter-spacing: .06em; }
+p { margin: 0; }
+.mute { color: var(--mute); }
+.lead { font-size: var(--j2); line-height: 40px; color: var(--ink); background: var(--panel-2); padding: 10px 12px; box-shadow: 0 0 0 var(--px) var(--panel-2); margin: var(--px); }
+.label { font-family: var(--f-display); font-size: var(--j15); color: var(--mute); }
+
+/* pixel frame: notched corners from stacked hard shadows, lit top edge */
+.frame {
+  background: var(--panel);
+  box-shadow: 0 calc(var(--px)*-1) 0 0 var(--rim), 0 var(--px) 0 0 var(--line), calc(var(--px)*-1) 0 0 0 var(--line), var(--px) 0 0 0 var(--line), 0 calc(var(--px)*3) 0 0 #00000080;
+  margin: var(--px); padding: 16px;
+  display: flex; flex-direction: column; gap: 14px;
+}
+.row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+.row > * { min-width: 0; }
+
+button {
+  font-family: var(--f-display); font-weight: 400; font-size: var(--j15);
+  color: var(--night); background: var(--moss); border: 0; cursor: pointer;
+  padding: 12px 16px; margin: var(--px);
+  box-shadow: 0 calc(var(--px)*-1) 0 0 var(--moss-dk), 0 var(--px) 0 0 var(--moss-dk), calc(var(--px)*-1) 0 0 0 var(--moss-dk), var(--px) 0 0 0 var(--moss-dk), 0 calc(var(--px)*2) 0 0 #00000080;
+}
+button:active { transform: translateY(var(--px)); }
+button:focus-visible, input:focus-visible { outline: var(--px) solid var(--firefly); outline-offset: 8px; }
+button.ghost { background: var(--panel-2); color: var(--ink); box-shadow: 0 calc(var(--px)*-1) 0 0 var(--line), 0 var(--px) 0 0 var(--line), calc(var(--px)*-1) 0 0 0 var(--line), var(--px) 0 0 0 var(--line), 0 calc(var(--px)*2) 0 0 #00000080; }
+button.big { font-size: var(--j2); padding: 16px 20px; flex: 1 1 auto; }
+
+input[type=text] {
+  font-family: var(--f-display); font-size: var(--j15); text-transform: uppercase;
+  background: var(--panel-2); color: var(--firefly); border: 0; padding: 12px; margin: var(--px); width: calc(100% - var(--px)*2);
+  box-shadow: 0 calc(var(--px)*-1) 0 0 var(--line), 0 var(--px) 0 0 var(--line), calc(var(--px)*-1) 0 0 0 var(--line), var(--px) 0 0 0 var(--line);
+}
+input::placeholder { color: var(--line); }
+.field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+
+.topbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.crumb { font-family: var(--f-display); font-size: var(--j15); color: var(--ink); background: var(--panel-2); padding: 6px 10px; }
+.mutebtn { font-size: var(--j15); padding: 8px 10px; margin-left: auto; }
+a.backlink { color: var(--moss); text-decoration: none; margin-right: auto; box-shadow: 0 0 0 2px var(--line); }
+a.backlink:hover { background: var(--panel); }
+a.backlink:focus-visible { outline: var(--px) solid var(--firefly); outline-offset: 6px; }
+.topbar { flex-wrap: wrap; }
+
+.rules { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; text-align: center; }
+.rules div { background: var(--panel-2); padding: 8px 4px; }
+.rules b { display: block; font-family: var(--f-display); font-size: var(--j15); font-weight: 400; color: var(--mute); }
+.rules span { font-size: var(--j2); color: var(--firefly); font-variant-numeric: tabular-nums; }
+
+/* play */
+.hud { display: grid; grid-template-columns: 1fr auto; gap: 16px; align-items: end; }
+.stat { display: flex; flex-direction: column; gap: 2px; text-align: right; }
+.stat .v { font-family: var(--f-display); font-size: var(--j4); color: var(--firefly); font-variant-numeric: tabular-nums; line-height: 60px; }
+.timer { height: 16px; background: var(--panel-2); box-shadow: 0 0 0 var(--px) var(--line); margin: var(--px); position: relative; overflow: hidden; }
+.timer i { position: absolute; inset: 0; background: repeating-linear-gradient(90deg, var(--moss) 0 12px, var(--moss-dk) 12px 16px); transform-origin: left; }
+.timer.low i { background: repeating-linear-gradient(90deg, var(--berry) 0 12px, #a63e33 12px 16px); }
+.secs { font-family: var(--f-display); font-size: var(--j15); color: var(--ink); margin-top: 8px; font-variant-numeric: tabular-nums; }
+
+.board { background: var(--panel); padding: 16px; margin: var(--px); display: flex; flex-direction: column; gap: 16px;
+  box-shadow: 0 calc(var(--px)*-1) 0 0 var(--rim), 0 var(--px) 0 0 var(--line), calc(var(--px)*-1) 0 0 0 var(--line), var(--px) 0 0 0 var(--line), 0 calc(var(--px)*3) 0 0 #00000080; }
+.slots, .tiles { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; }
+.slot { aspect-ratio: 1; max-width: 100%; background: var(--panel-2); box-shadow: inset 0 calc(var(--px)*-1) 0 0 var(--line); display: grid; place-items: center; font-family: var(--f-display); font-weight: 400; font-size: var(--j3); color: var(--firefly); }
+.tile {
+  aspect-ratio: 1; max-width: 100%; margin: 0; padding: 0;
+  font-family: var(--f-display); font-size: var(--j3); color: var(--tile-ink); background: var(--bark);
+  box-shadow: inset 0 calc(var(--px)*-1) 0 0 #c9ad78, 0 calc(var(--px)*-1) 0 0 var(--bark-dk), 0 var(--px) 0 0 var(--bark-dk), calc(var(--px)*-1) 0 0 0 var(--bark-dk), var(--px) 0 0 0 var(--bark-dk), 0 calc(var(--px)*2) 0 0 #00000080;
+}
+.tile.used { background: var(--panel-2); color: var(--line); box-shadow: 0 0 0 var(--px) var(--line); transform: translateY(var(--px)); }
+.controls { display: grid; grid-template-columns: 1fr 1fr 1.4fr; gap: 6px; }
+.controls button { padding: 12px 4px; }
+.feedback { font-family: var(--f-display); font-size: var(--j15); min-height: 24px; text-align: center; }
+.feedback.good { color: var(--moss); } .feedback.bad { color: var(--berry); }
+.shake { animation: shake 240ms steps(4); }
+@keyframes shake { 25% { transform: translateX(-8px);} 50% { transform: translateX(8px);} 75% { transform: translateX(-4px);} }
+.pop { animation: pop 300ms steps(3); }
+@keyframes pop { 0% { transform: translateY(0);} 50% { transform: translateY(-8px);} 100% { transform: translateY(0);} }
+
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { font-family: var(--f-display); font-size: var(--j15); padding: 4px 8px; background: var(--panel-2); color: var(--ink); box-shadow: 0 0 0 var(--px) var(--line); text-transform: uppercase; margin: var(--px); }
+.chip.l6 { color: var(--night); background: var(--firefly); box-shadow: 0 0 0 var(--px) #a8862c; }
+.chip.l5 { color: var(--firefly); }
+.keys { font-size: var(--j15); color: var(--mute); display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 16px; }
+.keys span { white-space: nowrap; }
+.keys kbd { font-family: var(--f-display); font-size: var(--j15); color: var(--ink); background: var(--panel-2); padding: 0 6px; box-shadow: 0 0 0 2px var(--line); }
+
+/* results */
+.versus { display: grid; grid-template-columns: 1fr auto 1fr; gap: 10px; align-items: start; text-align: center; }
+.versus .who { font-family: var(--f-display); font-size: var(--j15); color: var(--mute); overflow-wrap: anywhere; }
+.versus .pts { font-family: var(--f-display); font-size: var(--j4); color: var(--firefly); font-variant-numeric: tabular-nums; line-height: 1; }
+.versus .m { color: var(--ink); font-size: var(--j15); }
+.versus .vs { font-family: var(--f-display); color: var(--line); font-size: var(--j15); padding-top: 28px; }
+.win .who { color: var(--moss); }
+.crown { display: inline-block; font-size: var(--j15); background: var(--moss); color: var(--night); padding: 2px 8px; margin-top: 8px; font-family: var(--f-display); }
+.code {
+  font-family: var(--f-display); font-weight: 400; font-size: var(--j15); color: var(--firefly);
+  background: var(--panel-2); padding: 12px; text-align: center;
+  user-select: all; -webkit-user-select: all; overflow-wrap: anywhere;
+}
+.wordtable { width: 100%; border-collapse: collapse; font-size: var(--j15); }
+.wordtable th { font-family: var(--f-display); font-size: var(--j15); color: var(--mute); text-align: left; font-weight: 400; padding: 4px 6px; }
+.wordtable th.c, .wordtable td.c { text-align: center; width: 72px; overflow-wrap: anywhere; }
+.wordtable td { padding: 4px 6px; border-top: var(--px) solid var(--panel-2); text-transform: uppercase; }
+.wordtable td.p { text-align: right; color: var(--mute); font-variant-numeric: tabular-nums; width: 72px; }
+.wordtable tr.miss td:first-child { color: var(--mute); }
+.wordtable tr.group td { border-top: 0; padding-top: 16px; color: var(--moss); text-transform: none; }
+.wordtable tr.group td span { color: var(--mute); }
+.wordtable tr.six td:first-child { color: var(--firefly); }
+.six-callout { text-align: center; background: var(--panel-2); padding: 8px 12px; font-size: var(--j15); color: var(--mute); }
+.six-callout b { font-weight: 400; color: var(--firefly); font-size: var(--j2); letter-spacing: .06em; }
+.dot { display: inline-block; width: 12px; height: 12px; background: var(--moss); }
+.dot.no { background: transparent; box-shadow: inset 0 0 0 2px var(--line); }
+.tablewrap { overflow-x: auto; }
+.note { font-size: var(--j15); line-height: 32px; color: var(--mute); }
+/* leaderboard */
+.standings { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.standings li { display: grid; grid-template-columns: 44px 1fr auto; gap: 12px; align-items: center; background: var(--panel-2); padding: 6px 12px; margin: 0 var(--px); }
+.standings .rank { color: var(--mute); font-variant-numeric: tabular-nums; }
+.standings .bname { min-width: 0; overflow-wrap: anywhere; }
+.standings .bname small { display: block; font-size: var(--j15); line-height: 24px; color: var(--mute); }
+.standings .bpts { color: var(--firefly); font-size: var(--j2); font-variant-numeric: tabular-nums; }
+.standings li.first { box-shadow: 0 0 0 var(--px) var(--moss); }
+.standings li.first .rank { color: var(--moss); }
+.standings li.me .bname { color: var(--firefly); }
+.merge-note { text-align: center; color: var(--moss); background: var(--panel-2); padding: 6px 12px; }
+
+@media (max-width: 440px) {
+  h1 { font-size: var(--j3); }
+  .slots, .tiles { gap: 8px; }
+  .slot, .tile { font-size: var(--j2); }
+  .rules span { font-size: var(--j15); }
+  button.big { font-size: var(--j15); }
+}
+@media (prefers-reduced-motion: reduce) { .shake, .pop { animation: none; } button:active { transform: none; } }
+
+/* ---------- sea battle ---------- */
+:root { --water: #1b2f22; --water-2: #1f3626; --sunk: #6e2a22; --splash: #7fc4b0; --pad: #3f7a3a; --pad-lit: #6aa857; --j1: 18.6667px;
+  --o0: #7a5634; --o1: #b8925a; --o2: #e8d5a4; --o3: #c4683f; --o4: #5c3d22; }
+.sea { display: grid; grid-template-columns: 24px repeat(10, minmax(0, 1fr)); gap: 3px; width: 100%; max-width: 440px; margin: 0 auto; user-select: none; -webkit-user-select: none; }
+.sea.small { max-width: 300px; }
+.sea .lab { font-size: var(--j1); line-height: 1; color: var(--mute); display: grid; place-items: center; }
+.cell {
+  aspect-ratio: 1; min-width: 0; margin: 0; padding: 0; border: 0; box-shadow: none; cursor: default;
+  display: grid; place-items: center; font-family: var(--f-display); font-size: var(--j1); line-height: 1;
+  background: var(--water); color: var(--ink); position: relative;
+  /* murky speckle, one pixel per 6 */
+  background-image: linear-gradient(90deg, #ffffff0d 1px, transparent 1px), linear-gradient(#0000001f 1px, transparent 1px);
+  background-size: 6px 6px; background-position: 2px 3px;
+}
+.cell.alt { background: var(--water-2); }
+.cell:active { transform: none; }
+.target .cell.open { cursor: crosshair; }
+.target .cell.open:hover { background: var(--line); }
+/* lily pads float on some open water squares */
+.cell.pad::before { content: ""; position: absolute; width: 44%; height: 34%; left: 30%; top: 36%; background: var(--pad); box-shadow: 2px -2px 0 0 var(--pad-lit); }
+.cell.pad.miss::before, .cell.pad.sel::before, .cell.pad.pend::before, .cell.ship::before, .cell.hit::before, .cell.sunk::before, .cell.ghost::before { display: none; }
+.cell.ship { background: var(--o2); box-shadow: inset 0 -3px 0 0 #0000004d; background-image: none; }
+.cell.ship.k0 { background: var(--o0); } .cell.ship.k1 { background: var(--o1); } .cell.ship.k2 { background: var(--o2); }
+.cell.ship.k3 { background: var(--o3); } .cell.ship.k4 { background: var(--o4); }
+.cell.ship.picked { background: var(--firefly); box-shadow: inset 0 -3px 0 0 #a8862c; }
+.cell.ghost { background: var(--bark-dk); }
+.cell.miss::after { content: ""; width: 8px; height: 8px; background: transparent; box-shadow: 0 0 0 2px var(--splash); }
+.cell.hit { background: var(--berry); color: var(--night); }
+.cell.sunk { background: var(--sunk); color: var(--berry); }
+.cell.sel { background: var(--moss-dk); box-shadow: inset 0 0 0 3px var(--firefly); }
+.cell.pend { box-shadow: inset 0 0 0 3px var(--firefly); }
+.cell.fresh { animation: pop 300ms steps(3); }
+.boardhead { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.fleetchips { display: flex; flex-wrap: wrap; gap: 8px; }
+.fleetchips .chip { display: inline-flex; gap: 6px; align-items: center; }
+.fleetchips .chip i { display: inline-block; width: 10px; height: 10px; background: var(--o2); }
+.fleetchips .chip.k0 i { background: var(--o0); } .fleetchips .chip.k1 i { background: var(--o1); } .fleetchips .chip.k3 i { background: var(--o3); } .fleetchips .chip.k4 i { background: var(--o4); }
+.fleetchips .chip.down { color: var(--mute); text-decoration: line-through; }
+.fleetchips .chip.down i { background: var(--sunk); }
+.fleetchips .chip.on { box-shadow: 0 0 0 var(--px) var(--firefly); }
+.report { display: flex; flex-direction: column; gap: 4px; background: var(--panel-2); padding: 8px 12px; margin: var(--px); }
+.report b { font-weight: 400; color: var(--firefly); }
+.report .bad { color: var(--berry); }
+.games-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.games-list button { width: calc(100% - var(--px) * 2); display: flex; justify-content: space-between; gap: 12px; text-align: left; }
+.games-list .st { color: var(--mute); }
+.games-list .st.turn { color: var(--moss); }
+.check { padding: 8px 12px; margin: var(--px); background: var(--panel-2); }
+.check.ok { color: var(--moss); } .check.bad { color: var(--berry); }
+.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; text-align: center; }
+.stats div { background: var(--panel-2); padding: 8px 4px; }
+.stats b { display: block; font-weight: 400; color: var(--mute); }
+.stats span { font-size: var(--j2); color: var(--firefly); font-variant-numeric: tabular-nums; }
+@media (max-width: 440px) {
+  .sea { grid-template-columns: 18px repeat(10, minmax(0, 1fr)); gap: 2px; }
+  .sea .lab { font-size: 14px; }
+}
+</style>
+</head>
+<body>
+<canvas id="scene" aria-hidden="true"></canvas>
+<main>
+  <div class="topbar">
+    <a class="crumb backlink" id="allGames" href="index.html">ALL GAMES</a>
+    <span class="label" id="matchup" hidden></span>
+    <button class="ghost mutebtn" id="muteBtn" type="button" aria-pressed="false">SOUND ON</button>
+  </div>
+
+  <!-- HOME -->
+  <section class="screen" id="home">
+    <h1>WOODLAND<br>SWAMP BATTLE</h1>
+    <p class="lead">Hide five things in the swamp, then take turns firing at each other's. Every message you send is one turn with one shot. Take out everything they hid to win.</p>
+    <div class="frame">
+      <div class="field">
+        <label class="label" for="nameIn">YOUR NAME</label>
+        <input type="text" id="nameIn" maxlength="10" placeholder="PLAYER" autocomplete="off" spellcheck="false">
+      </div>
+      <p class="feedback bad" id="homeErr" role="status"></p>
+      <div class="row"><button class="big" id="newBtn" type="button">NEW GAME</button></div>
+    </div>
+    <div class="frame" id="myGamesBox" hidden>
+      <h2>YOUR GAMES</h2>
+      <ul class="games-list" id="myGames"></ul>
+    </div>
+    <div class="frame">
+      <div class="field">
+        <label class="label" for="codeIn">GOT A LINK OR CODE?</label>
+        <input type="text" id="codeIn" placeholder="PASTE IT HERE" autocomplete="off" spellcheck="false">
+      </div>
+      <div class="row"><button class="ghost big" id="codeBtn" type="button">OPEN</button></div>
+      <p class="feedback bad" id="codeErr" role="status"></p>
+    </div>
+    <div class="frame">
+      <h2>HOW IT WORKS</h2>
+      <p class="note">10 × 10 swamp. Each side hides a stilt hut (5), boardwalk (4), raft (3), canoe (3) and log (2). Fire one shot, send the link, and your friend's game answers it. Play each game from the same browser you started it in, since that's where your hiding spots are kept.</p>
+    </div>
+  </section>
+
+  <!-- JOIN -->
+  <section class="screen" id="intro" hidden>
+    <h1 id="introTitle">SAM CHALLENGES YOU</h1>
+    <p class="lead">Their first shot is already on its way. Hide your five pieces, see where it landed, then fire back.</p>
+    <div class="frame">
+      <div class="field">
+        <label class="label" for="nameIn2">YOUR NAME</label>
+        <input type="text" id="nameIn2" maxlength="10" placeholder="PLAYER" autocomplete="off" spellcheck="false">
+      </div>
+      <p class="feedback bad" id="introErr" role="status"></p>
+      <div class="row"><button class="big" id="introGo" type="button">HIDE YOUR PIECES</button></div>
+    </div>
+    <div class="row"><button class="ghost" id="introHome" type="button">BACK</button></div>
+  </section>
+
+  <!-- PLACE -->
+  <section class="screen" id="place" hidden>
+    <h1>HIDE YOUR PIECES</h1>
+    <div class="frame">
+      <p class="note">Tap a piece to pick it, then tap the water to move it there. Rotate turns the picked piece.</p>
+      <div class="sea" id="placeSea"></div>
+      <div class="fleetchips" id="placeChips"></div>
+      <div class="row">
+        <button class="ghost" id="shuffleBtn" type="button">SHUFFLE</button>
+        <button class="ghost" id="rotateBtn" type="button">ROTATE</button>
+      </div>
+      <p class="feedback bad" id="placeErr" role="status"></p>
+      <div class="row"><button class="big" id="readyBtn" type="button">READY</button></div>
+    </div>
+  </section>
+
+  <!-- PLAY -->
+  <section class="screen" id="play" hidden>
+    <h1 id="playTitle">YOUR TURN</h1>
+    <div class="report" id="report"></div>
+    <div class="frame" id="targetBox">
+      <div class="boardhead"><h2 id="targetH">THEIR SWAMP</h2><span class="note" id="targetNote"></span></div>
+      <div class="sea target" id="targetSea"></div>
+      <div class="fleetchips" id="enemyChips"></div>
+      <div class="row" id="fireRow"><button class="big" id="fireBtn" type="button" disabled>PICK A SQUARE</button></div>
+    </div>
+    <div class="frame" id="shareBox" hidden>
+      <h2 id="shareH">SEND YOUR SHOT</h2>
+      <p class="note" id="shareNote"></p>
+      <div class="code" id="codeOut"></div>
+      <div class="row">
+        <button class="big" id="copyMsg" type="button">COPY MESSAGE</button>
+        <button class="ghost" id="copyCode" type="button">COPY CODE</button>
+      </div>
+      <p class="feedback good" id="copyFb" role="status"></p>
+    </div>
+    <div class="frame" id="replyBox" hidden>
+      <div class="field">
+        <label class="label" for="replyIn">GOT THEIR REPLY? PASTE IT</label>
+        <input type="text" id="replyIn" placeholder="PASTE A LINK OR CODE" autocomplete="off" spellcheck="false">
+      </div>
+      <div class="row"><button class="ghost big" id="replyBtn" type="button">OPEN REPLY</button></div>
+      <p class="feedback bad" id="replyErr" role="status"></p>
+    </div>
+    <div class="frame" id="endBox" hidden>
+      <h2>THE GAME</h2>
+      <div class="stats" id="stats"></div>
+      <p class="check" id="checkLine"></p>
+    </div>
+    <div class="frame">
+      <div class="boardhead"><h2>YOUR SWAMP</h2><span class="note" id="mineNote"></span></div>
+      <div class="sea small" id="mineSea"></div>
+    </div>
+    <div class="row">
+      <button class="ghost" id="playHome" type="button">ALL MY GAMES</button>
+    </div>
+  </section>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const store = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : v; } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch {} }
+};
+
+/* ---------- rules ---------- */
+const N = 10, COLS = "ABCDEFGHIJ";
+const FLEET = [5, 4, 3, 3, 2];
+const SHIP = ["STILT HUT", "BOARDWALK", "RAFT", "CANOE", "LOG"];
+const cellName = (i) => COLS[i % N] + (Math.floor(i / N) + 1);
+const shipCells = (s) => Array.from({ length: FLEET[s.k] }, (_, j) => (s.dir === "H" ? s.cell + j : s.cell + N * j));
+const fits = (s) => s.cell >= 0 && s.cell < N * N && (s.dir === "H" ? (s.cell % N) + FLEET[s.k] <= N : Math.floor(s.cell / N) + FLEET[s.k] <= N);
+function occupancy(fleet) { const o = new Array(N * N).fill(-1); for (const s of fleet) for (const c of shipCells(s)) o[c] = s.k; return o; }
+function overlaps(fleet, s) { const o = occupancy(fleet.filter((x) => x.k !== s.k)); return shipCells(s).some((c) => o[c] >= 0); }
+function neighbours(c) { const r = Math.floor(c / N), q = c % N, out = []; for (let dr = -1; dr <= 1; dr++) for (let dq = -1; dq <= 1; dq++) { const rr = r + dr, qq = q + dq; if (rr >= 0 && rr < N && qq >= 0 && qq < N) out.push(rr * N + qq); } return out; }
+// random fleet, spaced so ships don't touch (manual moves may touch)
+function randomFleet() {
+  for (let tries = 0; tries < 200; tries++) {
+    const fleet = [], blocked = new Set();
+    let ok = true;
+    for (let k = 0; k < FLEET.length && ok; k++) {
+      ok = false;
+      for (let t = 0; t < 300; t++) {
+        const s = { k, dir: Math.random() < 0.5 ? "H" : "V", cell: Math.floor(Math.random() * N * N) };
+        if (!fits(s) || shipCells(s).some((c) => blocked.has(c))) continue;
+        fleet.push(s); shipCells(s).forEach((c) => neighbours(c).forEach((n) => blocked.add(n))); ok = true; break;
+      }
+    }
+    if (ok) return fleet;
+  }
+  return FLEET.map((_, k) => ({ k, dir: "H", cell: k * 2 * N }));
+}
+const fleetStr = (fleet) => fleet.slice().sort((a, b) => a.k - b.k).map((s) => String(s.cell).padStart(2, "0") + s.dir).join("");
+function parseFleet(str) {
+  if (!/^(\d\d[HV]){5}$/.test(str)) return null;
+  const fleet = FLEET.map((_, k) => ({ k, cell: +str.slice(k * 3, k * 3 + 2), dir: str[k * 3 + 2] }));
+  if (!fleet.every(fits)) return null;
+  const o = new Array(N * N).fill(0);
+  for (const s of fleet) for (const c of shipCells(s)) if (o[c]++) return null;
+  return fleet;
+}
+// what a shot at `cell` does to `fleet`, given the earlier shots at it: M, H, or the sunk ship's length
+function resolveShot(fleet, earlier, cell) {
+  const o = occupancy(fleet), k = o[cell];
+  if (k < 0) return "M";
+  const hit = new Set(earlier); hit.add(cell);
+  return shipCells(fleet.find((s) => s.k === k)).every((c) => hit.has(c)) ? String(FLEET[k]) : "H";
+}
+
+/* ---------- sealed fleets: SHA-256 so nobody can move ships or lie about hits ---------- */
+function sha256(ascii) {
+  const rr = (v, a) => (v >>> a) | (v << (32 - a));
+  const maxWord = 2 ** 32, words = [], bitLen = ascii.length * 8;
+  let hash = [], k = [], pc = 0; const comp = {};
+  for (let cand = 2; pc < 64; cand++) if (!comp[cand]) { for (let i = 0; i < 313; i += cand) comp[i] = cand; hash[pc] = (cand ** 0.5 * maxWord) | 0; k[pc++] = (cand ** (1 / 3) * maxWord) | 0; }
+  hash = hash.slice(0, 8);
+  ascii += "\x80"; while (ascii.length % 64 - 56) ascii += "\x00";
+  for (let i = 0; i < ascii.length; i++) { const j = ascii.charCodeAt(i); if (j >> 8) return ""; words[i >> 2] |= j << ((3 - i) % 4) * 8; }
+  words[words.length] = (bitLen / maxWord) | 0; words[words.length] = bitLen;
+  for (let j = 0; j < words.length;) {
+    const w = words.slice(j, j += 16), old = hash; hash = hash.slice(0, 8);
+    for (let i = 0; i < 64; i++) {
+      const w15 = w[i - 15], w2 = w[i - 2], a = hash[0], e = hash[4];
+      const t1 = hash[7] + (rr(e, 6) ^ rr(e, 11) ^ rr(e, 25)) + ((e & hash[5]) ^ (~e & hash[6])) + k[i] +
+        (w[i] = i < 16 ? w[i] : (w[i - 16] + (rr(w15, 7) ^ rr(w15, 18) ^ (w15 >>> 3)) + w[i - 7] + (rr(w2, 17) ^ rr(w2, 19) ^ (w2 >>> 10))) | 0);
+      const t2 = (rr(a, 2) ^ rr(a, 13) ^ rr(a, 22)) + ((a & hash[1]) ^ (a & hash[2]) ^ (hash[1] & hash[2]));
+      hash = [(t1 + t2) | 0].concat(hash); hash[4] = (hash[4] + t1) | 0;
+    }
+    for (let i = 0; i < 8; i++) hash[i] = (hash[i] + old[i]) | 0;
+  }
+  let out = ""; for (let i = 0; i < 8; i++) for (let j = 3; j + 1; j--) { const b = (hash[i] >> (j * 8)) & 255; out += (b < 16 ? "0" : "") + b.toString(16); }
+  return out;
+}
+const sealOf = (gid, side, fstr, salt) => sha256(`${gid}|${side}|${fstr}|${salt}`).slice(0, 12).toUpperCase();
+const randId = (n) => Array.from(crypto.getRandomValues(new Uint8Array(n)), (b) => "ABCDEFGHJKMNPQRSTUVWXYZ23456789"[b % 31]).join("");
+
+/* ---------- game state, carried in the link ----------
+   SB-GID-NAMEA-SEALA-NAMEB-SEALB-MOVES-REVEALA-REVEALB-CHK
+   Moves alternate, A first. Each is 2 digits for the square + P (waiting), M, H, or 2-5 (sank a ship that long).
+   A reveal (fleet + salt) is only added once the game is over. "_" marks an empty field. */
+function chk(s) { let h = 7; for (const ch of s) h = (h * 31 + ch.charCodeAt(0)) % 1296; return h.toString(36).toUpperCase().padStart(2, "0"); }
+const other = (side) => (side === "a" ? "b" : "a");
+const shooterOf = (i) => (i % 2 === 0 ? "a" : "b");
+function encode(st) {
+  const body = ["SB", st.gid, st.a.name, st.a.seal, st.b.name || "_", st.b.seal || "_",
+    st.moves.map((m) => String(m.cell).padStart(2, "0") + m.r).join("") || "_", st.a.reveal || "_", st.b.reveal || "_"].join("-");
+  return body + "-" + chk(body);
+}
+function decode(raw) {
+  const s = String(raw || "").trim().replace(/^.*#/, "").toUpperCase().replace(/[^A-Z0-9_-]/g, "");
+  const p = s.split("-");
+  if (p.length !== 10 || p[0] !== "SB") return null;
+  if (chk(p.slice(0, 9).join("-")) !== p[9]) return null;
+  const [, gid, an, as, bn, bs, mv, ar, br] = p;
+  const name = /^[A-Z0-9]{1,10}$/, seal = /^[0-9A-F]{12}$/, rev = /^(\d\d[HV]){5}[A-Z0-9]{10}$/;
+  if (!/^[A-Z0-9]{6}$/.test(gid) || !name.test(an) || !seal.test(as)) return null;
+  if (bn !== "_" && (!name.test(bn) || !seal.test(bs))) return null;
+  if (mv !== "_" && !/^(\d\d[PMH2-5])+$/.test(mv)) return null;
+  if ((ar !== "_" && !rev.test(ar)) || (br !== "_" && !rev.test(br))) return null;
+  const moves = mv === "_" ? [] : mv.match(/.../g).map((t) => ({ cell: +t.slice(0, 2), r: t[2] }));
+  if (moves.slice(0, -1).some((m) => m.r === "P")) return null;
+  return { gid, a: { name: an, seal: as, reveal: ar === "_" ? "" : ar }, b: { name: bn === "_" ? "" : bn, seal: bs === "_" ? "" : bs, reveal: br === "_" ? "" : br }, moves };
+}
+const shotsAt = (st, side) => st.moves.filter((m, i) => shooterOf(i) !== side);
+const sunkAt = (st, side) => shotsAt(st, side).filter((m) => /[2-5]/.test(m.r));
+const lost = (st, side) => sunkAt(st, side).length === FLEET.length;
+const isOver = (st) => lost(st, "a") || lost(st, "b");
+const pending = (st) => st.moves.length && st.moves[st.moves.length - 1].r === "P";
+// does a revealed fleet match its seal and every answer that side gave?
+function verify(st, side) {
+  const rv = st[side].reveal; if (!rv) return null;
+  const fstr = rv.slice(0, 15), salt = rv.slice(15), fleet = parseFleet(fstr);
+  if (!fleet || sealOf(st.gid, side, fstr, salt) !== st[side].seal) return { ok: false, why: "SEAL" };
+  const earlier = []; let bad = 0;
+  for (const m of shotsAt(st, side)) { if (m.r !== "P" && resolveShot(fleet, earlier, m.cell) !== m.r) bad++; earlier.push(m.cell); }
+  return { ok: bad === 0, bad, fleet };
+}
+
+/* ---------- this browser's games: our own fleet never leaves the device until the end ---------- */
+function loadMine() { try { return JSON.parse(store.get("sb-games", "{}")) || {}; } catch { return {}; } }
+function saveMine(all) { const keep = Object.entries(all).sort((a, b) => b[1].t - a[1].t).slice(0, 40); store.set("sb-games", JSON.stringify(Object.fromEntries(keep))); }
+function saveState(st) { const all = loadMine(); if (all[st.gid]) { all[st.gid].code = encode(st); all[st.gid].t = Date.now(); saveMine(all); } }
+function progress(st) { return st.moves.length * 4 + (pending(st) ? 0 : 1) * 2 + (st.a.reveal ? 1 : 0) + (st.b.reveal ? 1 : 0) + (st.b.name ? 1 : 0); }
+
+/* ---------- sound ---------- */
+let actx = null, muted = store.get("aa-muted", "0") === "1";
+function blip(freqs, dur = 0.07, type = "square", vol = 0.05) {
+  if (muted) return;
+  try {
+    actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+    let t = actx.currentTime;
+    for (const f of freqs) { const o = actx.createOscillator(), g = actx.createGain(); o.type = type; o.frequency.value = f; g.gain.value = vol; o.connect(g).connect(actx.destination); o.start(t); o.stop(t + dur); t += dur; }
+  } catch {}
+}
+const sfx = { M: () => blip([220, 180], 0.06, "triangle", 0.05), H: () => blip([150, 300, 600], 0.06), S: () => blip([600, 450, 300, 150], 0.09, "sawtooth", 0.05), fire: () => blip([880, 660], 0.04) };
+function paintMute() { $("muteBtn").textContent = muted ? "SOUND OFF" : "SOUND ON"; $("muteBtn").setAttribute("aria-pressed", String(muted)); }
+$("muteBtn").onclick = () => { muted = !muted; store.set("aa-muted", muted ? "1" : "0"); paintMute(); blip([660]); };
+paintMute();
+
+/* ---------- screens ---------- */
+const SCREENS = ["home", "intro", "place", "play"];
+function show(id) { SCREENS.forEach((s) => ($(s).hidden = s !== id)); $("matchup").hidden = id !== "play"; window.scrollTo(0, 0); }
+const cleanName = (v) => (v || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 10);
+for (const id of ["nameIn", "nameIn2"]) {
+  $(id).value = store.get("aa-name", "");
+  $(id).addEventListener("input", (e) => { const v = cleanName(e.target.value); e.target.value = v; store.set("aa-name", v); });
+}
+const inFrame = (() => { try { return window.self !== window.top; } catch { return true; } })();
+const linkFor = (code) => (!inFrame && /^https?:$/.test(location.protocol) ? location.origin + location.pathname + "#" + code : null);
+
+/* ---------- drawing a board ---------- */
+function drawSea(el, opts) {
+  el.textContent = "";
+  el.appendChild(document.createElement("span"));
+  for (let q = 0; q < N; q++) { const l = document.createElement("span"); l.className = "lab"; l.textContent = COLS[q]; el.appendChild(l); }
+  for (let r = 0; r < N; r++) {
+    const l = document.createElement("span"); l.className = "lab"; l.textContent = r + 1; el.appendChild(l);
+    for (let q = 0; q < N; q++) {
+      const i = r * N + q, b = document.createElement("button");
+      b.type = "button"; b.className = "cell" + ((r + q) % 2 ? " alt" : "") + ((i * 37 + 11) % 9 === 0 ? " pad" : "");
+      const info = opts.cell(i);
+      if (info.cls) b.className += " " + info.cls;
+      if (info.text) b.textContent = info.text;
+      b.setAttribute("aria-label", cellName(i) + (info.label ? ", " + info.label : ""));
+      if (opts.click) b.onclick = () => opts.click(i); else b.tabIndex = -1;
+      el.appendChild(b);
+    }
+  }
+}
+// squares of ships we sank, worked out from the hits around each "sunk" answer
+function sunkSquares(moves) {
+  const hits = new Set(moves.filter((m) => m.r === "H" || /[2-5]/.test(m.r)).map((m) => m.cell)), out = new Set();
+  for (const m of moves) {
+    if (!/[2-5]/.test(m.r)) continue;
+    const len = +m.r, r = Math.floor(m.cell / N), q = m.cell % N;
+    search: for (const [dr, dq] of [[0, 1], [1, 0]]) for (let off = 0; off < len; off++) {
+      const cells = Array.from({ length: len }, (_, j) => [r + (j - off) * dr, q + (j - off) * dq]);
+      if (cells.every(([rr, qq]) => rr >= 0 && rr < N && qq >= 0 && qq < N && hits.has(rr * N + qq) && !out.has(rr * N + qq))) { cells.forEach(([rr, qq]) => out.add(rr * N + qq)); break search; }
+    }
+  }
+  return out;
+}
+function fleetChips(el, sunkLens, picked) {
+  el.textContent = "";
+  const left = sunkLens.slice();
+  FLEET.forEach((len, k) => {
+    const c = document.createElement("span"); c.className = "chip k" + k;
+    const i = left.indexOf(len); if (i >= 0) { left.splice(i, 1); c.classList.add("down"); }
+    if (picked === k) c.classList.add("on");
+    for (let j = 0; j < len; j++) c.appendChild(document.createElement("i"));
+    c.append(" " + SHIP[k]); el.appendChild(c);
+  });
+}
+
+/* ---------- placing ships ---------- */
+let P = null; // { fleet, picked, done(fleet) }
+function startPlacing(done) { P = { fleet: randomFleet(), picked: 0, done }; $("placeErr").textContent = ""; renderPlace(); show("place"); }
+function renderPlace() {
+  const o = occupancy(P.fleet);
+  drawSea($("placeSea"), {
+    cell: (i) => (o[i] >= 0 ? { cls: "ship k" + o[i] + (o[i] === P.picked ? " picked" : ""), label: SHIP[o[i]] } : {}),
+    click: (i) => {
+      $("placeErr").textContent = "";
+      if (o[i] >= 0) { P.picked = o[i]; blip([520], 0.03); return renderPlace(); }
+      if (P.picked === null) return;
+      const s = { ...P.fleet.find((x) => x.k === P.picked), cell: i };
+      if (!fits(s)) { $("placeErr").textContent = `THE ${SHIP[s.k]} DOESN'T FIT THERE`; return; }
+      if (overlaps(P.fleet, s)) { $("placeErr").textContent = "PIECES CAN'T OVERLAP"; return; }
+      P.fleet = P.fleet.map((x) => (x.k === s.k ? s : x)); blip([440, 560], 0.03); renderPlace();
+    }
+  });
+  fleetChips($("placeChips"), [], P.picked);
+  [...$("placeChips").children].forEach((c, k) => { c.style.cursor = "pointer"; c.onclick = () => { P.picked = k; renderPlace(); }; });
+}
+$("shuffleBtn").onclick = () => { P.fleet = randomFleet(); $("placeErr").textContent = ""; blip([300, 360], 0.03); renderPlace(); };
+$("rotateBtn").onclick = () => {
+  if (P.picked === null) return;
+  const cur = P.fleet.find((x) => x.k === P.picked), s = { ...cur, dir: cur.dir === "H" ? "V" : "H" };
+  if (!fits(s)) { $("placeErr").textContent = "NO ROOM TO TURN IT HERE. MOVE IT FIRST"; return; }
+  if (overlaps(P.fleet, s)) { $("placeErr").textContent = "TURNING IT WOULD HIT ANOTHER PIECE"; return; }
+  P.fleet = P.fleet.map((x) => (x.k === s.k ? s : x)); $("placeErr").textContent = ""; renderPlace();
+};
+$("readyBtn").onclick = () => P.done(P.fleet);
+
+/* ---------- starting and joining ---------- */
+$("newBtn").onclick = () => {
+  const me = cleanName($("nameIn").value);
+  if (!me) { $("homeErr").textContent = "TYPE A NAME SO YOUR FRIEND KNOWS WHO YOU ARE."; return; }
+  $("homeErr").textContent = ""; store.set("aa-name", me);
+  startPlacing((fleet) => {
+    const gid = randId(6), salt = randId(10), fstr = fleetStr(fleet);
+    const st = { gid, a: { name: me, seal: sealOf(gid, "a", fstr, salt), reveal: "" }, b: { name: "", seal: "", reveal: "" }, moves: [] };
+    const all = loadMine(); all[gid] = { side: "a", fleet: fstr, salt, code: encode(st), t: Date.now() }; saveMine(all);
+    enterGame(st, "");
+  });
+};
+let PENDING = null;
+$("introGo").onclick = () => {
+  const me = cleanName($("nameIn2").value);
+  if (!me) { $("introErr").textContent = "TYPE A NAME SO YOUR FRIEND KNOWS WHO YOU ARE."; return; }
+  if (me === PENDING.a.name) { $("introErr").textContent = "THAT'S YOUR OPPONENT'S NAME. PICK YOUR OWN."; return; }
+  store.set("aa-name", me); $("nameIn").value = me;
+  const st = PENDING;
+  startPlacing((fleet) => {
+    const salt = randId(10), fstr = fleetStr(fleet);
+    st.b = { name: me, seal: sealOf(st.gid, "b", fstr, salt), reveal: "" };
+    const all = loadMine(); all[st.gid] = { side: "b", fleet: fstr, salt, code: encode(st), t: Date.now() }; saveMine(all);
+    enterGame(st, "");
+  });
+};
+$("introHome").onclick = () => goHome();
+
+function openCode(raw, errEl) {
+  const st = decode(raw);
+  if (!st) { if (errEl) errEl.textContent = "THAT LINK DOESN'T CHECK OUT. COPY IT AGAIN."; return false; }
+  if (errEl) errEl.textContent = "";
+  const mine = loadMine()[st.gid];
+  if (mine) {
+    if (sealOf(st.gid, mine.side, mine.fleet, mine.salt) !== st[mine.side].seal) { if (errEl) errEl.textContent = "THIS LINK DOESN'T MATCH THE BOARD SAVED FOR THIS GAME."; else goHome("THIS LINK DOESN'T MATCH THE BOARD SAVED FOR THIS GAME."); return false; }
+    const saved = decode(mine.code);
+    if (saved && progress(saved) > progress(st)) { enterGame(saved, "THAT LINK WAS OLDER THAN YOUR GAME. HERE'S THE LATEST."); return true; }
+    enterGame(st, ""); return true;
+  }
+  if (!st.b.name && !isOver(st)) {
+    PENDING = st;
+    $("introTitle").textContent = `${st.a.name} CHALLENGES YOU`;
+    $("nameIn2").value = store.get("aa-name", ""); $("introErr").textContent = "";
+    show("intro"); return true;
+  }
+  const msg = `THIS GAME IS BETWEEN ${st.a.name} AND ${st.b.name}. OPEN IT IN THE BROWSER YOU PLAYED IN.`;
+  if (errEl) errEl.textContent = msg; else goHome(msg);
+  return false;
+}
+$("codeBtn").onclick = () => openCode($("codeIn").value, $("codeErr"));
+$("codeIn").addEventListener("keydown", (e) => { if (e.key === "Enter") $("codeBtn").click(); });
+$("replyBtn").onclick = () => openCode($("replyIn").value, $("replyErr"));
+$("replyIn").addEventListener("keydown", (e) => { if (e.key === "Enter") $("replyBtn").click(); });
+
+/* ---------- playing ---------- */
+let G = null; // { st, side, fleet, sel, fresh: Set, note }
+function enterGame(st, note) {
+  const mine = loadMine()[st.gid], side = mine.side, opp = other(side), fleet = parseFleet(mine.fleet);
+  const fresh = new Set(); let news = [];
+  // answer their waiting shot with our own fleet
+  if (pending(st) && shooterOf(st.moves.length - 1) === opp) {
+    const m = st.moves[st.moves.length - 1];
+    m.r = resolveShot(fleet, shotsAt(st, side).slice(0, -1).map((x) => x.cell), m.cell);
+    fresh.add("m" + m.cell);
+    (m.r === "M" ? sfx.M : m.r === "H" ? sfx.H : sfx.S)();
+  }
+  // once it's over, reveal our fleet so the other side can check every answer we gave
+  if (isOver(st) && !st[side].reveal) st[side].reveal = mine.fleet + mine.salt;
+  G = { st, side, opp, fleet, sel: null, fresh, note };
+  saveState(st);
+  renderPlay();
+  show("play");
+}
+function lastBy(st, side) { for (let i = st.moves.length - 1; i >= 0; i--) if (shooterOf(i) === side) return st.moves[i]; return null; }
+function resultText(m, theirFleet) {
+  if (m.r === "P") return "WAITING FOR AN ANSWER";
+  if (m.r === "M") return "MISS";
+  if (m.r === "H") return "HIT";
+  if (theirFleet) { const k = occupancy(theirFleet)[m.cell]; return `HIT AND TOOK OUT THE ${SHIP[k]}`; }
+  return `HIT AND TOOK OUT A ${m.r}-SQUARE PIECE`;
+}
+function renderPlay() {
+  const { st, side, opp, fleet } = G;
+  const oppName = st[opp].name || "YOUR FRIEND", over = isOver(st), iLost = lost(st, side);
+  const myTurn = !over && !pending(st) && shooterOf(st.moves.length) === side;
+  $("matchup").textContent = `VS ${oppName}`;
+  $("playTitle").textContent = over ? (iLost ? `${oppName} WINS` : "YOU WIN") : myTurn ? "YOUR TURN" : `WAITING FOR ${oppName}`;
+
+  // what just happened
+  const rep = $("report"); rep.textContent = "";
+  const line = (html) => { const p = document.createElement("p"); p.append(...html); rep.appendChild(p); };
+  if (G.note) line([G.note]);
+  const theirLast = lastBy(st, opp), myLast = lastBy(st, side);
+  if (theirLast) { const b = document.createElement("b"); b.textContent = resultText(theirLast, fleet); line([`${oppName} FIRED AT ${cellName(theirLast.cell)}: `, b]); }
+  if (myLast) { const b = document.createElement("b"); b.textContent = resultText(myLast, null); line([`YOUR SHOT AT ${cellName(myLast.cell)}: `, b]); }
+  if (!theirLast && !myLast) line([st.b.name ? "" : "YOU FIRE FIRST. PICK A SQUARE IN THEIR SWAMP."]);
+  rep.hidden = !rep.textContent;
+
+  // their waters: our shots, and their ships once revealed
+  const myShots = st.moves.filter((m, i) => shooterOf(i) === side);
+  const shotMap = new Map(myShots.map((m) => [m.cell, m.r])), sunkSet = sunkSquares(myShots);
+  const v = verify(st, opp), theirOcc = v && v.fleet ? occupancy(v.fleet) : null;
+  $("targetH").textContent = `${oppName}'S SWAMP`;
+  $("targetNote").textContent = `${myShots.length} SHOT${myShots.length === 1 ? "" : "S"}`;
+  drawSea($("targetSea"), {
+    cell: (i) => {
+      const r = shotMap.get(i), fr = G.fresh.has("t" + i) ? " fresh" : "";
+      if (r === "P") return { cls: "pend", text: "?", label: "waiting" };
+      if (r === "M") return { cls: "miss" + fr, label: "miss" };
+      if (r) return { cls: (sunkSet.has(i) ? "sunk" : "hit") + fr, text: "X", label: sunkSet.has(i) ? "sunk" : "hit" };
+      if (theirOcc && theirOcc[i] >= 0) return { cls: "ghost", label: "their " + SHIP[theirOcc[i]].toLowerCase() };
+      if (G.sel === i) return { cls: "sel", label: "picked" };
+      return { cls: myTurn ? "open" : "" };
+    },
+    click: myTurn ? (i) => { if (shotMap.has(i)) return; G.sel = i; blip([500], 0.02); renderPlay(); } : null
+  });
+  fleetChips($("enemyChips"), myShots.filter((m) => /[2-5]/.test(m.r)).map((m) => +m.r), null);
+  $("fireRow").hidden = !myTurn;
+  $("fireBtn").disabled = G.sel === null;
+  $("fireBtn").textContent = G.sel === null ? "PICK A SQUARE" : `FIRE AT ${cellName(G.sel)}`;
+
+  // our fleet with their shots on it
+  const theirShots = shotsAt(st, side), tMap = new Map(theirShots.map((m) => [m.cell, m.r]));
+  const myOcc = occupancy(fleet), mySunkK = new Set(fleet.filter((s) => shipCells(s).every((c) => tMap.has(c) && tMap.get(c) !== "P")).map((s) => s.k));
+  drawSea($("mineSea"), {
+    cell: (i) => {
+      const r = tMap.get(i), fr = G.fresh.has("m" + i) ? " fresh" : "";
+      if (myOcc[i] >= 0 && r && r !== "P") return { cls: (mySunkK.has(myOcc[i]) ? "sunk" : "hit") + fr, text: "X", label: SHIP[myOcc[i]] + " hit" };
+      if (myOcc[i] >= 0) return { cls: "ship k" + myOcc[i], label: SHIP[myOcc[i]] };
+      if (r === "M") return { cls: "miss" + fr, label: "their miss" };
+      return {};
+    }
+  });
+  $("mineNote").textContent = `${FLEET.length - mySunkK.size} OF ${FLEET.length} STILL HIDDEN`;
+
+  // sending: after we fire, or when the game ends and our board must go back
+  const code = encode(st), link = linkFor(code);
+  const needSend = !myTurn && (pending(st) || over);
+  $("shareBox").hidden = !needSend;
+  $("replyBox").hidden = !( !over && !myTurn);
+  if (needSend) {
+    let msg;
+    if (over && iLost) {
+      $("shareH").textContent = "SEND YOUR BOARD"; $("shareNote").textContent = `${oppName} needs this to see the win, and to check every answer your game gave.`;
+      msg = `Swamp Battle: you found everything I hid. Here's my board so you can check it: `;
+    } else if (over) {
+      $("shareH").textContent = "SEND THE FINAL BOARD"; $("shareNote").textContent = `This shows ${oppName} where you hid everything, so they can check every answer your game gave.`;
+      msg = `Swamp Battle: got your last piece. Here's my board so you can check the game: `;
+    } else if (!st.b.name) {
+      $("shareH").textContent = "SEND YOUR CHALLENGE"; $("shareNote").textContent = "Your first shot is in this message. Your friend hides their pieces, sees where it landed, and fires back.";
+      msg = `Swamp Battle: I challenge you. My first shot is already fired. Hide your pieces and fire back: `;
+    } else {
+      const m = st.moves[st.moves.length - 1];
+      $("shareH").textContent = "SEND YOUR SHOT"; $("shareNote").textContent = `${oppName}'s game will answer it with a hit or a miss.`;
+      msg = `Swamp Battle vs ${oppName}: I fired at ${cellName(m.cell)}. Your turn: `;
+    }
+    msg += link || `open Woodland Swamp Battle and paste this code: ${code}`;
+    $("codeOut").textContent = code; $("copyFb").textContent = "";
+    $("copyMsg").onclick = () => copyText(msg, "MESSAGE COPIED. PASTE IT IN THE CHAT.");
+    $("copyCode").onclick = () => copyText(code, "CODE COPIED");
+  }
+  $("replyErr").textContent = ""; $("replyIn").value = "";
+
+  // end of game: stats and the honesty check
+  $("endBox").hidden = !over;
+  if (over) {
+    const hits = myShots.filter((m) => m.r !== "M" && m.r !== "P").length;
+    const st3 = $("stats"); st3.textContent = "";
+    for (const [k, val] of [["SHOTS", myShots.length], ["HITS", hits], ["AIM", myShots.length ? Math.round((hits / myShots.length) * 100) + "%" : "0%"]]) {
+      const d = document.createElement("div"), b = document.createElement("b"), s = document.createElement("span"); b.textContent = k; s.textContent = val; d.append(b, s); st3.appendChild(d);
+    }
+    const cl = $("checkLine");
+    if (!v) { cl.className = "check"; cl.textContent = `WHEN ${oppName} SENDS THEIR BOARD BACK, YOU CAN CHECK EVERY ANSWER THEY GAVE.`; }
+    else if (v.ok) { cl.className = "check ok"; cl.textContent = `${oppName}'S BOARD MATCHES ITS SEAL, AND EVERY HIT AND MISS CHECKS OUT.`; }
+    else { cl.className = "check bad"; cl.textContent = v.why === "SEAL" ? `${oppName}'S BOARD DOESN'T MATCH THE ONE THEY SEALED AT THE START.` : (v.bad === 1 ? `1 OF ${oppName}'S ANSWERS DOESN'T MATCH THEIR BOARD.` : `${v.bad} OF ${oppName}'S ANSWERS DON'T MATCH THEIR BOARD.`); }
+  }
+}
+$("fireBtn").onclick = () => {
+  if (G.sel === null) return;
+  G.st.moves.push({ cell: G.sel, r: "P" });
+  G.fresh = new Set(); G.sel = null; G.note = "";
+  sfx.fire(); saveState(G.st); renderPlay();
+  setTimeout(() => $("shareBox").scrollIntoView({ behavior: "smooth", block: "center" }), 50);
+};
+async function copyText(text, ok) {
+  try { await navigator.clipboard.writeText(text); $("copyFb").textContent = ok; }
+  catch {
+    const r = document.createRange(); r.selectNodeContents($("codeOut")); const s = getSelection(); s.removeAllRanges(); s.addRange(r);
+    $("copyFb").textContent = "COPY BLOCKED. CODE IS SELECTED, PRESS CMD+C.";
+  }
+}
+
+/* ---------- home: your games ---------- */
+function statusOf(st, side) {
+  const opp = other(side);
+  if (isOver(st)) return lost(st, side) ? "YOU LOST" : "YOU WON";
+  if (!st.b.name) return "WAITING FOR A FRIEND TO JOIN";
+  if (pending(st)) return shooterOf(st.moves.length - 1) === side ? `WAITING FOR ${st[opp].name}` : "YOUR TURN";
+  return shooterOf(st.moves.length) === side ? "YOUR TURN" : `WAITING FOR ${st[opp].name}`;
+}
+function goHome(err) {
+  const list = $("myGames"); list.textContent = "";
+  const games = Object.entries(loadMine()).sort((a, b) => b[1].t - a[1].t);
+  for (const [, g] of games) {
+    const st = decode(g.code); if (!st) continue;
+    const opp = st[other(g.side)].name || "NOT JOINED YET", status = statusOf(st, g.side);
+    const li = document.createElement("li"), b = document.createElement("button");
+    b.type = "button"; b.className = "ghost";
+    const n = document.createElement("span"); n.textContent = `VS ${opp}`;
+    const s = document.createElement("span"); s.className = "st" + (status === "YOUR TURN" ? " turn" : ""); s.textContent = status;
+    b.append(n, s); b.onclick = () => enterGame(st, ""); li.appendChild(b); list.appendChild(li);
+  }
+  $("myGamesBox").hidden = !list.children.length;
+  $("codeErr").textContent = err || "";
+  show("home");
+}
+$("playHome").onclick = () => goHome();
+// games are saved once they start, so only piece placement has anything to lose
+$("allGames").onclick = (e) => { if (!$("place").hidden && !confirm("Are you sure? Your hiding spots won't be saved.")) e.preventDefault(); };
+
+function fromHash() { const h = decodeURIComponent(location.hash.slice(1)); if (h && h.includes("-")) openCode(h, null); }
+window.addEventListener("hashchange", fromHash);
+
+/* ---------- the forest: hand-placed pixels, ordered dithering, integer scale ---------- */
+(function forest() {
+  const cv = $("scene"), ctx = cv.getContext("2d");
+  const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const S = 4;
+  const hex = (h) => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
+  const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+  const th = (x, y) => (BAYER[(y & 3) * 4 + (x & 3)] + 0.5) / 16;
+  const C = Object.fromEntries(Object.entries({
+    sky0: "#08130f", sky1: "#0e2219", sky2: "#173426", sky3: "#26492f", sky4: "#4a6a3a", sky5: "#9a9a52", glow: "#d9c27a",
+    star: "#cfe6c4", cloud: "#2e5136", cloudLit: "#6f8a4a",
+    hill: "#1f3d2c", hillLit: "#35603f", mist: "#5f8f6c",
+    pine3: "#183324", pine3Lit: "#2c5a3a",
+    pine2: "#10261a", pine2Lit: "#1f4a2c",
+    pine1: "#0a1910", pine1Lit: "#1a3a22",
+    rock: "#1c2620", rockLit: "#3b4a3a", moss: "#2f5f2f", mossLit: "#5c9446",
+    fall: "#7fc4b0", foam: "#e2f5e8", ground: "#08130c", fern: "#24502b", fernLit: "#4f8a3c",
+    cap: "#c0453a", capDot: "#f2e2c4", stem: "#e8d5a4"
+  }).map(([k, v]) => [k, hex(v)]));
+  let W, H, base, falls = [], flies = [], frame = 0, timer = 0;
+
+  function mulberry(a) { return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+
+  function build() {
+    W = Math.ceil(innerWidth / S); H = Math.ceil(innerHeight / S);
+    cv.width = W; cv.height = H; cv.style.width = W * S + "px"; cv.style.height = H * S + "px";
+    const img = ctx.createImageData(W, H), d = img.data;
+    const R = mulberry(20261105);
+    const put = (x, y, c) => { x |= 0; y |= 0; if (x < 0 || y < 0 || x >= W || y >= H) return; const i = (y * W + x) * 4; d[i] = c[0]; d[i + 1] = c[1]; d[i + 2] = c[2]; d[i + 3] = 255; };
+    const pick = (x, y, a, b, t) => (t > th(x, y) ? b : a);
+    const band = (f) => Math.max(0, Math.min(1, (f - 0.3) / 0.4)); // solid bands, dithered seams
+
+    // sky
+    const sky = [C.sky0, C.sky1, C.sky2, C.sky3, C.sky4, C.sky5];
+    const hz = Math.round(H * 0.58);
+    for (let y = 0; y < hz; y++) {
+      const t = (y / (hz - 1)) * (sky.length - 1), i = Math.min(sky.length - 2, Math.floor(t));
+      for (let x = 0; x < W; x++) put(x, y, pick(x, y, sky[i], sky[i + 1], band(t - i)));
+    }
+    for (let y = hz; y < H; y++) for (let x = 0; x < W; x++) put(x, y, C.sky5);
+    // low sun glow
+    const gx = Math.round(W * 0.62), gy = hz - 2, gr = Math.max(14, W * 0.12);
+    for (let y = gy - gr; y < hz; y++) for (let x = gx - gr * 2; x < gx + gr * 2; x++) {
+      const e = 1 - Math.hypot((x - gx) / 2, y - gy) / gr;
+      if (e > 0 && e * 1.4 > th(x | 0, y)) put(x, y, C.glow);
+    }
+    // stars in the top band
+    for (let i = 0; i < W * H / 260; i++) { const x = R() * W, y = R() * hz * 0.35; put(x, y, C.star); }
+    // cloud streaks
+    for (let i = 0; i < 6; i++) {
+      const cy = Math.round(hz * (0.3 + R() * 0.55)), cx = R() * W, cw = 18 + R() * 50, ch = 1 + Math.round(R() * 2);
+      for (let y = cy - ch; y <= cy + ch; y++) for (let x = cx - cw; x < cx + cw; x++) {
+        const e = 1 - ((x - cx) / cw) ** 2 - ((y - cy) / (ch + 0.5)) ** 2;
+        if (e > th(x | 0, y)) put(x, y, y >= cy + ch - 0 ? C.cloudLit : C.cloud);
+      }
+    }
+    // far hills
+    const hillTop = [];
+    for (let x = 0; x < W; x++) hillTop[x] = Math.round(hz - 6 - 7 * Math.sin(x / 23 + 1) - 4 * Math.sin(x / 9));
+    for (let x = 0; x < W; x++) for (let y = hillTop[x]; y < H; y++) {
+      let c = y === hillTop[x] ? C.hillLit : C.hill;
+      put(x, y, pick(x, y, c, C.mist, band(((y - hillTop[x]) / 18))));
+    }
+    // pine treelines, far to near
+    function pine(x0, base, h, col, lit, solidBelow) {
+      const tiers = Math.max(2, Math.round(h / 5));
+      for (let r = 0; r < h; r++) {
+        const tierPos = (r % Math.ceil(h / tiers)) / Math.ceil(h / tiers);
+        const hw = Math.max(0, Math.round((r / h) * h * 0.32 * (0.55 + tierPos * 0.6)));
+        const y = base - h + r;
+        for (let dx = -hw; dx <= hw; dx++) put(x0 + dx, y, dx === -hw && hw > 0 ? lit : col);
+      }
+      for (let r = 0; r < 2; r++) put(x0, base + r, col);
+    }
+    function treeline(baseFn, hMin, hMax, gap, col, lit, mistFade) {
+      for (let x = -4; x < W + 4; x += gap + Math.round(R() * gap)) {
+        const b = baseFn(x); pine(x, b, Math.round(hMin + R() * (hMax - hMin)), col, lit);
+      }
+      for (let x = 0; x < W; x++) for (let y = baseFn(x); y < H; y++) {
+        const c = mistFade ? pick(x, y, col, C.mist, band((y - baseFn(x)) / mistFade)) : col; put(x, y, c);
+      }
+    }
+    treeline((x) => Math.round(hz + 6 + 2 * Math.sin(x / 17)), 8, 16, 3, C.pine3, C.pine3Lit, 20);
+    // mist band between layers
+    const my = Math.round(hz + H * 0.1);
+    for (let y = my - 4; y < my + 6; y++) for (let x = 0; x < W; x++) {
+      const e = 1 - Math.abs(y - my) / 6 - 0.25 * (1 + Math.sin(x / 11 + y));
+      if (e > th(x, y)) put(x, y, C.mist);
+    }
+    treeline((x) => Math.round(hz + H * 0.16 + 3 * Math.sin(x / 13 + 2)), 14, 26, 5, C.pine2, C.pine2Lit, 0);
+
+    // rocky cliff with waterfall on the right
+    falls = [];
+    const cl = Math.round(W * 0.7), cTop = (x) => Math.round(hz + 2 - (x - cl) * 0.35 + (R() < 0.3 ? 1 : 0));
+    for (let x = cl; x < W; x++) {
+      const t = cTop(x);
+      for (let y = t; y < H; y++) {
+        let c = ((x * 3 + (y >> 2) * 5) % 9 === 0) ? C.rockLit : C.rock;
+        if (y - t < 3) c = y === t ? C.mossLit : C.moss;
+        else if (((x * 7 + y * 3) % 23) < 2 && y - t < 14) c = C.moss;
+        put(x, y, c);
+      }
+      if (x === cl) for (let y = t; y < H; y++) put(x, y, C.rockLit);
+    }
+    // pines on the cliff
+    for (let x = cl + 4; x < W; x += 7 + Math.round(R() * 6)) pine(x, cTop(x) + 1, 10 + Math.round(R() * 10), C.pine1, C.pine1Lit);
+    // waterfall columns
+    for (const f of [0.38, 0.62]) {
+      const fx = Math.round(cl + (W - cl) * f), y0 = cTop(fx) + 2;
+      for (let x = fx; x < fx + 3; x++) for (let y = y0; y < H; y++) put(x, y, C.fall);
+      falls.push({ x: fx, y0, w: 3 });
+    }
+
+    // left foreground: big dark pines
+    for (let x = -6; x < W * 0.28; x += 6 + Math.round(R() * 6)) pine(x, H - 4, Math.round(H * (0.32 + R() * 0.2)), C.pine1, C.pine1Lit);
+    // foreground ground, ferns, mushrooms
+    for (let x = 0; x < W; x++) { const g = H - 5 + Math.round(1.5 * Math.sin(x / 8)); for (let y = g; y < H; y++) put(x, y, C.ground); }
+    for (let x = 2; x < W; x += 5 + Math.round(R() * 9)) {
+      const b = H - 5 + Math.round(1.5 * Math.sin(x / 8));
+      for (let k = 0; k < 4; k++) { put(x - k, b - k, k ? C.fern : C.fernLit); put(x + k, b - k, C.fern); put(x, b - k, C.fernLit); }
+    }
+    for (let i = 0; i < Math.max(2, W / 60); i++) {
+      const x = Math.round(W * 0.08 + R() * W * 0.84), b = H - 5 + Math.round(1.5 * Math.sin(x / 8));
+      put(x, b, C.stem); put(x, b - 1, C.stem);
+      for (let dx = -2; dx <= 2; dx++) put(x + dx, b - 2, C.cap);
+      for (let dx = -1; dx <= 1; dx++) put(x + dx, b - 3, C.cap);
+      put(x - 1, b - 2, C.capDot); put(x + 1, b - 3, C.capDot);
+    }
+
+    base = img;
+    flies = Array.from({ length: Math.max(8, Math.round(W / 14)) }, () => ({ x: R() * W, y: hz + R() * (H - hz - 6), p: R() * 40 | 0, dx: R() < 0.5 ? -1 : 1 }));
+  }
+
+  function drawFrame() {
+    ctx.putImageData(base, 0, 0);
+    // falling water: foam streaks that step down
+    for (const f of falls) for (let y = f.y0; y < H; y++) {
+      for (let x = f.x; x < f.x + f.w; x++) if (((y - frame * 2 + x * 3) % 6 + 6) % 6 === 0) { ctx.fillStyle = "#e2f5e8"; ctx.fillRect(x, y, 1, 1); }
+      if (y > H - 7) { ctx.fillStyle = (y + frame) % 2 ? "#e2f5e8" : "#7fc4b0"; ctx.fillRect(f.x - 1 - ((y + frame) % 3), y, f.w + 2 + ((y + frame) % 3) * 2, 1); }
+    }
+    // fireflies blink on a slow cycle
+    for (const fl of flies) {
+      const on = (frame + fl.p) % 40 < 18;
+      if (on) { ctx.fillStyle = "#ffd76a"; ctx.fillRect(fl.x | 0, fl.y | 0, 1, 1); if ((frame + fl.p) % 40 < 6) { ctx.fillStyle = "#7d6a2a"; ctx.fillRect((fl.x | 0) - 1, fl.y | 0, 1, 1); ctx.fillRect((fl.x | 0) + 1, fl.y | 0, 1, 1); } }
+      if (!still && frame % 3 === 0) { fl.x += fl.dx * 0.5; fl.y += ((frame + fl.p) % 12 < 6 ? -0.5 : 0.5); if (fl.x < 0 || fl.x > W) fl.dx *= -1; }
+    }
+  }
+  function loop() { frame++; drawFrame(); timer = setTimeout(() => requestAnimationFrame(loop), 125); }
+
+  let rt = 0;
+  addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(() => { build(); drawFrame(); }, 120); });
+  build(); drawFrame();
+  if (!still) loop();
+})();
+
+goHome();
+fromHash();
+</script>
+</body>
+</html>
