@@ -93,6 +93,10 @@ input::placeholder { color: var(--line); }
 .topbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
 .crumb { font-family: var(--f-display); font-size: var(--j15); color: var(--ink); background: var(--panel-2); padding: 6px 10px; }
 .mutebtn { font-size: var(--j15); padding: 8px 10px; }
+a.backlink { color: var(--moss); text-decoration: none; margin-right: auto; box-shadow: 0 0 0 2px var(--line); }
+a.backlink:hover { background: var(--panel); }
+a.backlink:focus-visible { outline: var(--px) solid var(--firefly); outline-offset: 6px; }
+.topbar { flex-wrap: wrap; }
 
 .rules { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; text-align: center; }
 .rules div { background: var(--panel-2); padding: 8px 4px; }
@@ -188,6 +192,7 @@ input::placeholder { color: var(--line); }
 <canvas id="scene" aria-hidden="true"></canvas>
 <main>
   <div class="topbar">
+    <a class="crumb backlink" id="allGames" href="index.html" hidden>ALL GAMES</a>
     <span class="crumb" id="crumb">HOME</span>
     <button class="ghost mutebtn" id="muteBtn" type="button" aria-pressed="false">SOUND ON</button>
   </div>
@@ -17399,7 +17404,9 @@ paintMute();
 
 /* ---------- screens ---------- */
 const SCREENS = ["home", "intro", "play", "results"];
-function show(id, crumb) { SCREENS.forEach((s) => ($(s).hidden = s !== id)); $("crumb").textContent = crumb; window.scrollTo(0, 0); }
+// "All games" only makes sense on the real site, and is hidden mid-round so nobody leaves by accident
+const ON_SITE = (() => { try { return window.self === window.top && /^https?:$/.test(location.protocol); } catch { return false; } })();
+function show(id, crumb) { SCREENS.forEach((s) => ($(s).hidden = s !== id)); $("crumb").textContent = crumb; $("allGames").hidden = !ON_SITE || id === "play"; window.scrollTo(0, 0); }
 const cleanName = (v) => (v || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 10);
 for (const id of ["nameIn", "nameIn2"]) {
   $(id).value = store.get("aa-name", "");

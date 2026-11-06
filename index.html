@@ -75,6 +75,7 @@ a.card:focus-visible { outline: var(--px) solid var(--firefly); outline-offset: 
 .art { display: grid; grid-template-columns: repeat(3, 28px); gap: 6px; }
 .art span { width: 28px; height: 28px; display: grid; place-items: center; font-size: var(--j15); line-height: 1; color: var(--tile-ink); background: var(--bark);
   box-shadow: inset 0 calc(var(--px)*-1) 0 0 #c9ad78, 0 var(--px) 0 0 var(--bark-dk); }
+.art.grid4 { grid-template-columns: repeat(2, 28px); margin-inline: 17px; }
 .card.soon { box-shadow: 0 0 0 var(--px) var(--line); background: var(--panel-2); }
 .card.soon .name, .card.soon .desc { color: var(--mute); }
 .card.soon .art span { background: var(--panel); color: var(--line); box-shadow: inset 0 0 0 2px var(--line); }
@@ -86,6 +87,7 @@ a.card:focus-visible { outline: var(--px) solid var(--firefly); outline-offset: 
   .play { grid-column: 1 / -1; text-align: center; }
   .art { grid-template-columns: repeat(3, 20px); gap: 4px; }
   .art span { width: 20px; height: 20px; font-size: 18.6667px; }
+  .art.grid4 { grid-template-columns: repeat(2, 20px); margin-inline: 12px; }
 }
 @media (prefers-reduced-motion: reduce) { a.card:active { transform: none; } }
 </style>
@@ -103,6 +105,13 @@ a.card:focus-visible { outline: var(--px) solid var(--firefly); outline-offset: 
       <a class="card" href="anagrams.html">
         <span class="art" aria-hidden="true"><span>A</span><span>N</span><span>A</span></span>
         <span class="text"><span class="name">ANAGRAMS</span><br><span class="desc">Six letters, sixty seconds.</span></span>
+        <span class="play">PLAY</span>
+      </a>
+    </li>
+    <li>
+      <a class="card" href="wordhunt.html">
+        <span class="art grid4" aria-hidden="true"><span>W</span><span>O</span><span>R</span><span>D</span></span>
+        <span class="text"><span class="name">WORD HUNT</span><br><span class="desc">Drag across 16 letters for 80 seconds.</span></span>
         <span class="play">PLAY</span>
       </a>
     </li>
