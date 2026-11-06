@@ -163,6 +163,17 @@ input::placeholder { color: var(--line); }
 .dot.no { background: transparent; box-shadow: inset 0 0 0 2px var(--line); }
 .tablewrap { overflow-x: auto; }
 .note { font-size: var(--j15); line-height: 32px; color: var(--mute); }
+/* leaderboard */
+.standings { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.standings li { display: grid; grid-template-columns: 44px 1fr auto; gap: 12px; align-items: center; background: var(--panel-2); padding: 6px 12px; margin: 0 var(--px); }
+.standings .rank { color: var(--mute); font-variant-numeric: tabular-nums; }
+.standings .bname { min-width: 0; overflow-wrap: anywhere; }
+.standings .bname small { display: block; font-size: var(--j15); line-height: 24px; color: var(--mute); }
+.standings .bpts { color: var(--firefly); font-size: var(--j2); font-variant-numeric: tabular-nums; }
+.standings li.first { box-shadow: 0 0 0 var(--px) var(--moss); }
+.standings li.first .rank { color: var(--moss); }
+.standings li.me .bname { color: var(--firefly); }
+.merge-note { text-align: center; color: var(--moss); background: var(--panel-2); padding: 6px 12px; }
 
 @media (max-width: 440px) {
   h1 { font-size: var(--j3); }
@@ -184,7 +195,7 @@ input::placeholder { color: var(--line); }
   <!-- HOME -->
   <section class="screen" id="home">
     <h1>WOODLAND<br>ANAGRAMS</h1>
-    <p class="lead">Six letters, sixty seconds. Make as many words as you can, then send your code to a friend so they play the same letters.</p>
+    <p class="lead">Six letters, sixty seconds. Make as many words as you can, then send the link to your friends. Everyone who plays the same letters joins one scoreboard.</p>
     <div class="frame">
       <div class="field">
         <label class="label" for="nameIn">YOUR NAME</label>
@@ -216,6 +227,10 @@ input::placeholder { color: var(--line); }
   <section class="screen" id="intro" hidden>
     <h1 id="introTitle">SAM SCORED 4,800</h1>
     <p class="lead" id="introSub"></p>
+    <div class="frame" id="introBoardBox" hidden>
+      <h2>SCORES SO FAR</h2>
+      <ol class="standings" id="introBoard"></ol>
+    </div>
     <div class="frame">
       <div class="field">
         <label class="label" for="nameIn2">YOUR NAME</label>
@@ -224,7 +239,10 @@ input::placeholder { color: var(--line); }
       <p class="feedback bad" id="introErr" role="status"></p>
       <div class="row"><button class="big" id="introGo" type="button">PLAY THESE LETTERS</button></div>
     </div>
-    <div class="row"><button class="ghost" id="introHome" type="button">BACK</button></div>
+    <div class="row">
+      <button class="ghost" id="introHome" type="button">BACK</button>
+      <button class="ghost" id="introPeek" type="button">ALREADY PLAYED? SEE SCORES</button>
+    </div>
   </section>
 
   <!-- PLAY -->
@@ -267,6 +285,14 @@ input::placeholder { color: var(--line); }
         <button class="ghost" id="copyCode" type="button">COPY CODE</button>
       </div>
       <p class="feedback good" id="copyFb" role="status"></p>
+    </div>
+    <div class="frame">
+      <div class="field">
+        <label class="label" for="mergeIn">GOT ANOTHER REPLY? PASTE IT TO ADD THOSE PLAYERS</label>
+        <input type="text" id="mergeIn" placeholder="PASTE A CODE OR LINK" autocomplete="off" spellcheck="false">
+      </div>
+      <div class="row"><button class="ghost big" id="mergeBtn" type="button">ADD TO SCOREBOARD</button></div>
+      <p class="feedback bad" id="mergeErr" role="status"></p>
     </div>
     <div class="frame">
       <h2 id="ansH">ALL ANSWERS</h2>
@@ -17320,7 +17346,8 @@ function subwords(rack) { const c = counts(rack); return WORDS.filter((w) => fit
 const byLen = (a, b) => b.length - a.length || (a < b ? -1 : 1);
 const scoreOf = (list) => list.reduce((s, w) => s + PTS[w.length], 0);
 
-/* ---------- codes: RACK-NAME-MASK[-NAME-MASK]-CHK, only A-Z 0-9 and hyphens ---------- */
+/* ---------- codes: RACK-NAME-MASK[-NAME-MASK...]-CHK, up to 8 players, only A-Z 0-9 and hyphens ---------- */
+const MAX_PLAYERS = 8;
 function chk(s) { let h = 7; for (const ch of s) h = (h * 31 + ch.charCodeAt(0)) % 1296; return h.toString(36).toUpperCase().padStart(2, "0"); }
 function maskOf(words, foundSet) { let m = 0n; words.forEach((w, i) => { if (foundSet.has(w)) m |= 1n << BigInt(i); }); return m.toString(36).toUpperCase(); }
 function unmask(words, s) {
@@ -17336,7 +17363,7 @@ function makeCode(rack, players) {
 function parseCode(raw) {
   const s = String(raw || "").trim().replace(/^.*#/, "").toUpperCase().replace(/[^A-Z0-9-]/g, "");
   const parts = s.split("-").filter(Boolean);
-  if (parts.length !== 4 && parts.length !== 6) return null;
+  if (parts.length < 4 || parts.length % 2 || (parts.length - 2) / 2 > MAX_PLAYERS) return null;
   const c = parts.pop();
   if (chk(parts.join("-")) !== c) return null;
   const rackRaw = parts[0].toLowerCase();
@@ -17346,7 +17373,7 @@ function parseCode(raw) {
   const players = [];
   for (let i = 1; i < parts.length; i += 2) {
     const name = parts[i]; const found = unmask(words, parts[i + 1]);
-    if (!/^[A-Z0-9]{1,10}$/.test(name) || !found) return null;
+    if (!/^[A-Z0-9]{1,10}$/.test(name) || !found || players.some((q) => q.name === name)) return null;
     players.push({ name, mask: parts[i + 1], found });
   }
   return { rack, display: rackRaw, words, players, code: s };
@@ -17383,12 +17410,13 @@ for (const id of ["nameIn", "nameIn2"]) {
 let G = null, raf = 0;
 function shuffleArr(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
 
-function startGame(rack, opponent, displayOrder) {
+function startGame(rack, others, displayOrder) {
   const me = cleanName($("nameIn").value) || cleanName($("nameIn2").value) || "PLAYER";
   const tiles = (displayOrder || rack).split("");
   if (!displayOrder) shuffleArr(tiles);
-  G = { rack, me, opponent, words: subwords(rack), tiles, cur: [], found: new Set(), score: 0, endsAt: performance.now() + ROUND_MS, done: false, lastTick: 99 };
-  show("play", opponent ? `VS ${opponent.name}` : "SOLO");
+  G = { rack, me, others: others || [], words: subwords(rack), tiles, cur: [], found: new Set(), score: 0, endsAt: performance.now() + ROUND_MS, done: false, lastTick: 99 };
+  const n = G.others.length;
+  show("play", n === 0 ? "SOLO" : n === 1 ? `VS ${G.others[0].name}` : `VS ${n} PLAYERS`);
   renderTiles(); renderSlots(); renderFound(); setFb("", "");
   $("scoreV").textContent = "0";
   blip([392, 523, 659], 0.08);
@@ -17473,80 +17501,119 @@ document.addEventListener("keydown", (e) => {
   else if (k === "Escape") { clearCur(); }
 });
 
+/* ---------- memory: the latest scoreboard for each set of letters, so replies merge ---------- */
+function loadGames() { try { return JSON.parse(store.get("aa-games", "{}")) || {}; } catch { return {}; } }
+function saveGame(game) {
+  const all = loadGames();
+  all[game.rack] = { display: game.display, players: game.players.map((p) => ({ name: p.name, mask: p.mask })), t: Date.now() };
+  const keep = Object.entries(all).sort((a, b) => b[1].t - a[1].t).slice(0, 60);
+  store.set("aa-games", JSON.stringify(Object.fromEntries(keep)));
+}
+// combine a code with what this browser already knows about the same letters
+function mergeWithMemory(g) {
+  const mem = loadGames()[g.rack];
+  if (!mem) { saveGame(g); return { game: g, note: "" }; }
+  const players = [];
+  for (const q of mem.players) { const found = unmask(g.words, q.mask); if (found && !players.some((x) => x.name === q.name)) players.push({ name: q.name, mask: q.mask, found }); }
+  const known = new Set(players.map((x) => x.name));
+  const added = g.players.filter((q) => !known.has(q.name));
+  const hadExtra = players.some((x) => !g.players.some((q) => q.name === x.name));
+  let all = players.concat(added), dropped = 0;
+  if (all.length > MAX_PLAYERS) { dropped = all.length - MAX_PLAYERS; all = all.slice(0, MAX_PLAYERS); }
+  const game = { rack: g.rack, display: mem.display || g.display, words: g.words, players: all };
+  saveGame(game);
+  const bits = [];
+  if (added.length && players.length) bits.push(`ADDED ${added.map((q) => q.name).join(", ")}`);
+  if (hadExtra) bits.push("COMBINED WITH SCORES YOU ALREADY HAD");
+  if (dropped) bits.push(`${dropped} LEFT OFF. 8 PLAYERS MAX`);
+  return { game, note: bits.join(" · ") };
+}
+
 /* ---------- results ---------- */
-let LAST = null, MISS_ALL = false;
+let LAST = null;
 function endGame() {
   G.done = true; cancelAnimationFrame(raf);
   blip([659, 523, 392, 262], 0.1);
-  const players = [];
-  if (G.opponent) players.push(G.opponent);
-  players.push({ name: G.me, mask: maskOf(G.words, G.found), found: G.words.filter((w) => G.found.has(w)) });
-  showResults({ rack: G.rack, display: G.tiles.join(""), words: G.words, players }, players.length - 1);
+  const players = G.others.concat([{ name: G.me, mask: maskOf(G.words, G.found), found: G.words.filter((w) => G.found.has(w)) }]);
+  const game = { rack: G.rack, display: G.tiles.join(""), words: G.words, players };
+  saveGame(game);
+  showResults(game, players.length - 1, "");
 }
-function showResults(game, meIndex) {
-  LAST = { game, meIndex }; MISS_ALL = false;
+// players sorted by score; ties share a rank
+function ranked(ps) {
+  const rows = ps.map((p, i) => ({ p, i, s: scoreOf(p.found) })).sort((a, b) => b.s - a.s || a.i - b.i);
+  rows.forEach((r, k) => { r.rank = k && r.s === rows[k - 1].s ? rows[k - 1].rank : k + 1; });
+  return rows;
+}
+function renderStandings(el, ps, viewerName) {
+  el.textContent = "";
+  for (const r of ranked(ps)) {
+    const li = document.createElement("li");
+    li.className = (r.rank === 1 ? "first" : "") + (r.p.name === viewerName ? " me" : "");
+    const rank = document.createElement("span"); rank.className = "rank"; rank.textContent = "#" + r.rank;
+    const nm = document.createElement("span"); nm.className = "bname"; nm.textContent = r.p.name + (r.p.name === viewerName ? " (YOU) " : " ");
+    const sm = document.createElement("small"); sm.textContent = `${r.p.found.length} WORD${r.p.found.length === 1 ? "" : "S"}`; nm.appendChild(sm);
+    const pts = document.createElement("span"); pts.className = "bpts"; pts.textContent = fmt(r.s);
+    li.append(rank, nm, pts); el.appendChild(li);
+  }
+}
+function showResults(game, meIndex, note) {
+  LAST = { game, meIndex };
   const ps = game.players;
   const code = makeCode(game.display, ps.map((p) => ({ name: p.name, mask: p.mask })));
-  const scores = ps.map((p) => scoreOf(p.found));
-  const viewer = meIndex === null ? null : ps[meIndex];
+  const viewer = meIndex === null || meIndex < 0 ? null : ps[meIndex];
+  const rows = ranked(ps);
 
-  if (ps.length === 1) $("resTitle").textContent = `${fmt(scores[0])} POINTS`;
+  if (ps.length === 1) $("resTitle").textContent = `${fmt(rows[0].s)} POINTS`;
   else {
-    const w = scores[0] === scores[1] ? null : (scores[0] > scores[1] ? 0 : 1);
-    $("resTitle").textContent = w === null ? "IT'S A TIE" : (meIndex === w ? "YOU WIN" : `${ps[w].name} WINS`);
+    const tops = rows.filter((r) => r.rank === 1);
+    $("resTitle").textContent = tops.length > 1 ? "TIE FOR FIRST" : (viewer && tops[0].p === viewer ? "YOU'RE IN FIRST" : `${tops[0].p.name} IS IN FIRST`);
   }
 
   const sb = $("scoreboard"); sb.textContent = "";
-  const cell = (p, s, isWin) => {
-    const d = document.createElement("div"); if (isWin) d.className = "win";
-    const who = document.createElement("div"); who.className = "who"; who.textContent = p.name + (viewer === p && ps.length > 1 ? " (YOU)" : "");
-    const pts = document.createElement("div"); pts.className = "pts"; pts.textContent = fmt(s);
-    const m = document.createElement("div"); m.className = "m"; m.textContent = `${p.found.length} WORD${p.found.length === 1 ? "" : "S"}`;
-    d.append(who, pts, m);
-    if (isWin) { const c = document.createElement("span"); c.className = "crown"; c.textContent = "WINNER"; d.appendChild(c); }
-    return d;
-  };
+  if (note) { const m = document.createElement("p"); m.className = "merge-note"; m.textContent = note; sb.appendChild(m); }
   if (ps.length === 1) {
-    const v = document.createElement("div"); v.className = "versus"; v.style.gridTemplateColumns = "1fr"; v.appendChild(cell(ps[0], scores[0], false)); sb.appendChild(v);
+    const v = document.createElement("div"); v.className = "versus"; v.style.gridTemplateColumns = "1fr";
+    const d = document.createElement("div");
+    const who = document.createElement("div"); who.className = "who"; who.textContent = ps[0].name;
+    const pts = document.createElement("div"); pts.className = "pts"; pts.textContent = fmt(rows[0].s);
+    const m = document.createElement("div"); m.className = "m"; m.textContent = `${ps[0].found.length} WORD${ps[0].found.length === 1 ? "" : "S"}`;
+    d.append(who, pts, m); v.appendChild(d); sb.appendChild(v);
   } else {
-    const v = document.createElement("div"); v.className = "versus";
-    const vs = document.createElement("div"); vs.className = "vs"; vs.textContent = "VS";
-    v.append(cell(ps[0], scores[0], scores[0] > scores[1]), vs, cell(ps[1], scores[1], scores[1] > scores[0]));
-    sb.appendChild(v);
+    const h = document.createElement("h2"); h.textContent = `SCOREBOARD · ${ps.length} PLAYERS`; sb.appendChild(h);
+    const ol = document.createElement("ol"); ol.className = "standings"; renderStandings(ol, ps, viewer && viewer.name); sb.appendChild(ol);
   }
   const best = game.words.reduce((s, w) => s + PTS[w.length], 0);
   const n = document.createElement("p"); n.className = "note"; n.style.textAlign = "center";
   n.textContent = `${game.words.length} words hide in ${game.display.toUpperCase()}, worth ${fmt(best)} points in all.`;
   sb.appendChild(n);
-
-  const inFrame = (() => { try { return window.self !== window.top; } catch { return true; } })();
-  const link = !inFrame && /^https?:$/.test(location.protocol) ? location.origin + location.pathname + "#" + code : null;
-  let msg;
-  if (ps.length === 1) {
-    $("shareH").textContent = "CHALLENGE A FRIEND";
-    $("shareNote").textContent = link ? "Send the message. The link opens straight into your letters." : "Send the message. Your friend opens Woodland Anagrams, pastes the code, and plays the same letters.";
-    msg = `I scored ${fmt(scores[0])} in Woodland Anagrams. Beat me: ` + (link || `open the game and enter code ${code}`);
-  } else if (meIndex === 1) {
-    $("shareH").textContent = "SEND THE RESULT BACK";
-    $("shareNote").textContent = `${ps[0].name} only sees the outcome once you send this.`;
-    const me = scores[1], them = scores[0];
-    msg = `${me > them ? "Got you" : me < them ? "You got me" : "Tied"}: ${fmt(me)} vs your ${fmt(them)} in Woodland Anagrams. See every word: ` + (link || `enter code ${code}`);
-  } else {
-    $("shareH").textContent = "RESULT CODE";
-    $("shareNote").textContent = "This code reopens this exact head-to-head.";
-    msg = `Woodland Anagrams: ${ps[0].name} ${fmt(scores[0])} vs ${ps[1].name} ${fmt(scores[1])}. ` + (link || `Code ${code}`);
-  }
-  $("codeOut").textContent = code;
-  $("copyFb").textContent = "";
-  $("copyMsg").onclick = () => copyText(msg, "MESSAGE COPIED. PASTE IT IN THE CHAT.");
-  $("copyCode").onclick = () => copyText(code, "CODE COPIED");
-
-  // the 6-letter word(s), called out under the scores
   const sixes = game.words.filter((w) => w.length === 6);
   const callout = document.createElement("p"); callout.className = "six-callout";
   callout.append(sixes.length > 1 ? "THE 6-LETTER WORDS: " : "THE 6-LETTER WORD: ");
   const sb6 = document.createElement("b"); sb6.textContent = sixes.join(" · ").toUpperCase(); callout.appendChild(sb6);
   sb.appendChild(callout);
+
+  // sharing
+  const inFrame = (() => { try { return window.self !== window.top; } catch { return true; } })();
+  const link = !inFrame && /^https?:$/.test(location.protocol) ? location.origin + location.pathname + "#" + code : null;
+  const full = ps.length >= MAX_PLAYERS;
+  let msg;
+  if (ps.length === 1) {
+    $("shareH").textContent = "CHALLENGE YOUR FRIENDS";
+    $("shareNote").textContent = (link ? "Send the link to one friend or a whole group chat." : "Send the message to one friend or a whole group chat. They open Woodland Anagrams and paste the code.") + " Everyone who plays gets added to the same scoreboard.";
+    msg = `I scored ${fmt(rows[0].s)} in Woodland Anagrams. Beat me: ` + (link || `open the game and enter code ${code}`);
+  } else {
+    $("shareH").textContent = "SHARE THE SCOREBOARD";
+    $("shareNote").textContent = full
+      ? "This game is full at 8 players. Send it so everyone sees the final scores."
+      : "Send this back to the chat. It has everyone's scores so far, and anyone who hasn't played can still join.";
+    const line = rows.map((r) => `${r.rank}. ${r.p.name} ${fmt(r.s)}`).join(" · ");
+    msg = `Woodland Anagrams, ${ps.length} players: ${line}. ` + (full ? "See every word: " : "Play the same letters or see every word: ") + (link || `enter code ${code}`);
+  }
+  $("codeOut").textContent = code;
+  $("copyFb").textContent = ""; $("mergeErr").textContent = ""; $("mergeIn").value = "";
+  $("copyMsg").onclick = () => copyText(msg, "MESSAGE COPIED. PASTE IT IN THE CHAT.");
+  $("copyCode").onclick = () => copyText(code, "CODE COPIED");
 
   // full answer key, grouped by length, with who found each word
   const anyFound = new Set(ps.flatMap((p) => p.found));
@@ -17573,7 +17640,7 @@ function showResults(game, meIndex) {
     }
   }
 
-  show("results", ps.length > 1 ? "HEAD TO HEAD" : "RESULTS");
+  show("results", ps.length > 1 ? `${ps.length} PLAYERS` : "RESULTS");
 }
 async function copyText(text, ok) {
   try { await navigator.clipboard.writeText(text); $("copyFb").textContent = ok; }
@@ -17597,27 +17664,46 @@ $("homeBtn").onclick = () => show("home", "HOME");
 $("introHome").onclick = () => show("home", "HOME");
 let PENDING = null;
 function openCode(raw, errEl) {
-  const g = parseCode(raw);
-  if (!g) { if (errEl) errEl.textContent = "THAT CODE DOESN'T CHECK OUT. COPY IT AGAIN."; return false; }
+  const parsed = parseCode(raw);
+  if (!parsed) { if (errEl) errEl.textContent = "THAT CODE DOESN'T CHECK OUT. COPY IT AGAIN."; return false; }
   if (errEl) errEl.textContent = "";
-  if (g.players.length === 2) { const me = cleanName(store.get("aa-name", "")); const idx = g.players.findIndex((p) => p.name === me); showResults(g, idx >= 0 ? idx : null); return true; }
-  PENDING = g;
-  const p = g.players[0], s = scoreOf(p.found);
-  $("introTitle").textContent = `${p.name} SCORED ${fmt(s)}`;
-  $("introSub").textContent = `${p.found.length} word${p.found.length === 1 ? "" : "s"}. You get the same six letters and the same 60 seconds.`;
+  const { game: g, note } = mergeWithMemory(parsed);
+  const me = cleanName(store.get("aa-name", ""));
+  const idx = me ? g.players.findIndex((p) => p.name === me) : -1;
+  // already played these letters, or the game is full: go straight to the scores
+  if (idx >= 0) { showResults(g, idx, note); return true; }
+  if (g.players.length >= MAX_PLAYERS) { showResults(g, null, note || "THIS GAME IS FULL. 8 PLAYERS MAX."); return true; }
+  PENDING = { game: g, note };
+  const rows = ranked(g.players), lead = rows[0];
+  if (g.players.length === 1) {
+    $("introTitle").textContent = `${lead.p.name} SCORED ${fmt(lead.s)}`;
+    $("introSub").textContent = `${lead.p.found.length} word${lead.p.found.length === 1 ? "" : "s"}. You get the same six letters and the same 60 seconds.`;
+    $("introBoardBox").hidden = true;
+  } else {
+    const tie = rows.filter((r) => r.rank === 1).length > 1;
+    $("introTitle").textContent = tie ? `TIE AT ${fmt(lead.s)}` : `${lead.p.name} LEADS WITH ${fmt(lead.s)}`;
+    $("introSub").textContent = `${g.players.length} players so far. You get the same six letters and the same 60 seconds, then you join the scoreboard.`;
+    renderStandings($("introBoard"), g.players, null);
+    $("introBoardBox").hidden = false;
+  }
   $("nameIn2").value = store.get("aa-name", "");
   $("introErr").textContent = "";
-  show("intro", "CHALLENGE");
+  show("intro", g.players.length > 1 ? `${g.players.length} PLAYERS` : "CHALLENGE");
   return true;
 }
 $("codeBtn").onclick = () => openCode($("codeIn").value, $("codeErr"));
 $("codeIn").addEventListener("keydown", (e) => { if (e.key === "Enter") $("codeBtn").click(); });
+$("mergeBtn").onclick = () => openCode($("mergeIn").value, $("mergeErr"));
+$("mergeIn").addEventListener("keydown", (e) => { if (e.key === "Enter") $("mergeBtn").click(); });
 $("introGo").onclick = () => {
-  const me = cleanName($("nameIn2").value) || "PLAYER";
-  if (me === PENDING.players[0].name) { $("introErr").textContent = "THAT'S THE CHALLENGER'S NAME. PICK YOUR OWN."; return; }
+  const me = cleanName($("nameIn2").value);
+  if (!me) { $("introErr").textContent = "TYPE A NAME SO YOUR FRIENDS KNOW WHO YOU ARE."; return; }
+  const g = PENDING.game;
+  if (g.players.some((p) => p.name === me)) { $("introErr").textContent = `${me} ALREADY PLAYED THESE LETTERS. PICK ANOTHER NAME.`; return; }
   store.set("aa-name", me); $("nameIn").value = me;
-  startGame(PENDING.rack, PENDING.players[0], PENDING.display);
+  startGame(g.rack, g.players, g.display);
 };
+$("introPeek").onclick = () => showResults(PENDING.game, null, PENDING.note);
 function fromHash() { const h = decodeURIComponent(location.hash.slice(1)); if (h && h.includes("-")) openCode(h, null); }
 window.addEventListener("hashchange", fromHash);
 
